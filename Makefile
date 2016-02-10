@@ -1,14 +1,28 @@
-SRC=billiard_geom.cpp
+SRC=billiards.cpp
+ESRC=billiard_geom.cpp
 AUX=billiard_geom.h
 DST=billiard
+DSTT=billiard_test
 OPTS=-Wall -Wextra -pedantic
 LIBS=-lglut -lGLU -lGL -lm -ggdb 
 CC=g++
 
 
-pacman: $(SRC) $(AUX)
-	@$(CC) $(OPTS) $(LIBS) $(SRC) -o $(DST)
+billiard: $(SRC) $(ESRC) $(AUX)
+	@$(CC) $(OPTS) -DNO_TEST $(LIBS) $(SRC) $(ESRC) -o $(DST)
 	@echo Compilation complete!
 
-clean: $(DST)
-	$(RM) $(DST)
+test: $(ESRC) $(AUX)
+	@$(CC) $(OPTS) $(LIBS) $(ESRC) -o $(DSTT)
+	@echo Compilation for testing complete!
+
+clean: 
+	@if [ -e $(DST) ] ; \
+	then \
+     	$(RM) $(DST) ; \
+	fi;
+
+	@if [ -e $(DSTT) ] ; \
+	then \
+     	$(RM) $(DSTT) ; \
+	fi;

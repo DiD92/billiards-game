@@ -15,12 +15,13 @@
 //-----------------------------------------------
 
 #define NUM_SEGMENTS 20
+#define TWICE_PI 2 * M_PI
 
 //-----------------------------------------------
 // -- AUXILIARY METHODS
 //-----------------------------------------------
 
-void drawCircle(float cx, float cy, float r, int numSegments);
+void drawCircle(float, float, float, int, RGBColor);
 
 //-----------------------------------------------
 // -- LIBRARY IMPLEMENTATION
@@ -165,28 +166,28 @@ void Ball::setColor(RGBColor color) { this->color = color; }
 void Ball::draw() {
     //CODE HERE
     Point3 p = getPosition();
-    drawCircle(p.getX(), p.getY(), getRadius(), NUM_SEGMENTS);
+    drawCircle(p.getX(), p.getY(), getRadius(), NUM_SEGMENTS, color);
 }
 
-void drawCircle(float cx, float cy, float r, int num_segments) {
+void drawCircle(float cx, float cy, float r, 
+    int numSegments, RGBColor color) {
 
-    glBegin(GL_LINE_LOOP);
-    for(int ii = 0; ii < num_segments; ii++) {
-        float theta = 2.0f * M_PI * float(ii) / float(num_segments);
-
-        float x = r * cosf(theta);//calculate the x component
-        float y = r * sinf(theta);//calculate the y component
-
-        glVertex2f(x + cx, y + cy);//output vertex
-
-    }
+    int i;
+    glColor3ub(color.getRed(), color.getGreen(), color.getBlue());
+    glBegin(GL_TRIANGLE_FAN);
+        glVertex2f(cx, cy);
+        for(i = 0; i <= numSegments; i++) { 
+            glVertex2f(
+                    cx + (r * cos(i *  TWICE_PI / numSegments)), 
+                cy + (r * sin(i * TWICE_PI / numSegments))
+            );
+        }
     glEnd();
 }
 
 //-----------------------------------------------
 
-#ifndef _BILLIARD_MAIN_
-#define _BILLIARD_MAIN_
+#ifndef NO_TEST
 
 //-----------------------------------------------
 // -- TEST MAIN
@@ -283,6 +284,8 @@ int main() {
     delete vector1; delete vector2; 
     delete particle;
     delete ball;
+
+    std::cout << "All tests succesful!" << std::endl;
 
     return 0;
 }
