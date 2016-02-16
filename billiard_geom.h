@@ -89,11 +89,15 @@ class Particle {
         void setVelocity(Vector3 velocity);
 
         Point3 integrate(double time);
+        void addForce(Vector3 force);
+        void clearForceAcumulator();
 
     private:
         double mass;
         Point3 position;
         Vector3 velocity;
+        Vector3 acceleration;
+        Vector3 forceAcumulator;
 
 };
 
@@ -115,6 +119,29 @@ class Ball : public Particle, public IDrawable {
         double radius;
         RGBColor color;
 
+};
+
+class IForceGenerator {
+
+    public:
+        virtual ~IForceGenerator() {}
+        virtual void updateForce(Particle *p, double ftime) = 0;
+};
+
+class DragForceGenerator : IForceGenerator {
+
+    public:
+        DragForceGenerator();
+        DragForceGenerator(double k1, double k2);
+        double getK1();
+        void setK1(double k1);
+        double getK2();
+        void setK2(double k2);
+
+        void updateForce(Particle *p, double ftime);
+
+    private:
+        double k1, k2;
 };
 
 #endif

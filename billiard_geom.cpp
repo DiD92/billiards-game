@@ -114,10 +114,12 @@ Vector3 Vector3::operator * (double scalar) {
 
 //-----------------------------------------------
 
-Particle::Particle() : mass(0.0f), position(Point3()), velocity(Vector3()) {}
+Particle::Particle() : mass(0.0f), position(Point3()), velocity(Vector3()),
+    acceleration(Vector3()), forceAcumulator(Vector3()) {}
 
 Particle::Particle(double mass, Point3 position, Vector3 velocity) :
-    mass(mass), position(position), velocity(velocity) {}
+    mass(mass), position(position), velocity(velocity), 
+    acceleration(Vector3()), forceAcumulator(Vector3()) {}
 
 Particle::~Particle() {
     //CODE HERE
@@ -141,8 +143,18 @@ void Particle::setVelocity(const Vector3 velocity) {
 
 Point3 Particle::integrate(double ftime) {
     this->setPosition(getPosition() + (getVelocity() * ftime));
+    this->setVelocity(getVelocity() + (this->acceleration * ftime));
 
     return getPosition();
+}
+
+void Particle::addForce(const Vector3 force) {
+    this->forceAcumulator = this->forceAcumulator + force;
+    this->acceleration = this->forceAcumulator * (1.0 / this->mass);
+}
+
+void Particle::clearForceAcumulator() {
+    this->forceAcumulator = Vector3();
 }
 
 //-----------------------------------------------
@@ -168,6 +180,40 @@ void Ball::draw() {
     Point3 p = getPosition();
     drawCircle(p.getX(), p.getY(), getRadius(), NUM_SEGMENTS, color);
 }
+
+DragForceGenerator::DragForceGenerator() : k1(0.27), k2(0.32) {}
+
+DragForceGenerator::DragForceGenerator(double k1, double k2) : k1(k1), 
+    k2(k2) {}
+
+double DragForceGenerator::getK1() {
+    return this->k1;
+}
+
+void DragForceGenerator::setK1(double k1) {
+    this->k1 = k1;
+}
+
+double DragForceGenerator::getK2() {
+    return this->k2;
+}
+
+void DragForceGenerator::setK2(double k2) {
+    this->k2 = k2;
+}
+
+void DragForceGenerator::updateForce(Particle *p, double ftime) {
+    Vector3 velocity = p->getVelocity();
+    double speed = velocity.modulus();
+
+    Vector3 frictionForce = velocity.normalized() * -1.0; 
+
+    frictionForce = frictionForce * ((k1 * speed) + (k2 * pow(speed,2)));
+
+    p->addForce(frictionForce);
+}
+
+//-----------------------------------------------
 
 void drawCircle(float cx, float cy, float r, 
     int numSegments, RGBColor color) {
