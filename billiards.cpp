@@ -19,8 +19,6 @@ void initGraphicContext(int, char**);
 void cleanContext();
 double toSecondsDelta(long);
 
-void testBounceBall(double);
-
 //-----------------------------------------------
 // -- DISPLAY METHODS
 //-----------------------------------------------
@@ -39,7 +37,7 @@ Point3 *ballPosition;
 Vector3 *ballVelocity;
 RGBColor *color;
 
-DragForceGenerator *drag;
+BilliardsTable *table;
 
 bool bounce = false;
 
@@ -56,9 +54,6 @@ double deltaSeconds;
 
 int main(int argc,char *argv[]) {
 
-    speedx = (double) (rand() % 20) / 10.0;
-    speedy = (double) (rand() % 20) / 10.0;
-
     initContext();
 
     initGraphicContext(argc, argv);
@@ -72,11 +67,14 @@ int main(int argc,char *argv[]) {
 
 void initContext() {
     ballPosition = new Point3(0.5, 0.5, 0.0);
-    ballVelocity = new Vector3(speedx, speedy, 0.0);
+    ballVelocity = new Vector3(0.0, 0.0, 0.0);
     color = new RGBColor(123, 123, 123);
     ball = new Ball(0.156, *ballPosition, *ballVelocity, 0.1, *color);
-    drag = new DragForceGenerator(0.03, 0.07);
-
+    Plane north = Plane::createPlane(Vector3(0.0, -1.0, 0.0), Point3(0.0, 1.0, 0.0));
+    Plane south = Plane::createPlane(Vector3(0.0, 1.0, 0.0), Point3(0.0, 0.0, 0.0));
+    Plane east = Plane::createPlane(Vector3(-1.0, 0.0, 0.0), Point3(2.0, 0.0, 0.0));
+    Plane west = Plane::createPlane(Vector3(1.0, 0.0, 0.0), Point3(0.0, 0.0, 0.0));
+    table = new BilliardsTable(north, south, east, west, *ball);
 }
 
 void initGraphicContext(int argc, char **argv) {
@@ -105,7 +103,6 @@ void cleanContext() {
     delete ballVelocity;
     delete color;
     delete ball;
-
 }
 
 double toSecondsDelta(long deltamilis) {
@@ -116,7 +113,8 @@ void display() {
     glClearColor(1.0,1.0,1.0,0.0); // Clear screen color
     glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT); // Clear
     
-    ball->draw();
+    table->draw();
+
     glutSwapBuffers();
 }
 
@@ -124,7 +122,9 @@ void keyboard(uchar c, int x, int y) {
     char key = c;
     switch(key) {
         case ' ':
-            bounce = !bounce;
+            speedx = (double) (rand() % 20) / 10.0;
+            speedy = (double) (rand() % 20) / 10.0;
+            table->hitBall(Vector3(speedx, speedy, 0.0));
             break;
         default:
             break;
@@ -137,43 +137,9 @@ void idle() {
     deltaTime = elapsedTime - lastElapsed;
     deltaSeconds = toSecondsDelta(deltaTime);
 
-    if(bounce) {
-        testBounceBall(deltaSeconds);
-        ball->clearForceAcumulator();
-        drag->updateForce(ball, deltaSeconds);
-    }
+    std::cout << table->integrate(deltaSeconds).getX() << std::endl;
 
     lastElapsed = elapsedTime;
 
     glutPostRedisplay();
-}
-
-void testBounceBall(double delta) {
-    double deltaSec = delta;
-    double x, y, radius;
-    bool changed = false;
-    Vector3 vector;
-    Point3 currentPos;
-
-    currentPos = ball->getPosition();
-
-    vector = ball->getVelocity();
-    x = currentPos.getX();
-    y = currentPos.getY();
-    radius = ball->getRadius();
-
-    if(x - radius <= 0.0 || x > worldx - radius) {
-        vector.setX(vector.getX() * -1.0);
-        changed = true;
-    }
-
-    if(y - radius <= 0.0 || y > worldy - radius) {
-        vector.setY(vector.getY() * -1.0);
-        changed = true;
-    }
-    if(changed) {
-        ball->setVelocity(vector);
-    }
-
-    ball->integrate(deltaSec);
 }

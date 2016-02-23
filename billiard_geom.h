@@ -72,6 +72,7 @@ class Vector3 : public Point3 {
         Vector3 normalized();
 
         Vector3 operator * (double scalar);
+        double operator * (const Vector3 &vector);
 };
 
 class Particle {
@@ -125,7 +126,7 @@ class IForceGenerator {
 
     public:
         virtual ~IForceGenerator() {}
-        virtual void updateForce(Particle *p, double ftime) = 0;
+        virtual void updateForce(Particle *p) = 0;
 };
 
 class DragForceGenerator : IForceGenerator {
@@ -138,10 +139,65 @@ class DragForceGenerator : IForceGenerator {
         double getK2();
         void setK2(double k2);
 
-        void updateForce(Particle *p, double ftime);
+        void updateForce(Particle *p);
 
     private:
         double k1, k2;
+};
+
+class Plane {
+
+    public:
+        static Plane createPlane(Vector3 vector, Point3 point);
+        double distanceToPoint(Point3 point);
+        Vector3 getNormal();
+
+    private:
+        Plane(Vector3 normal, double d);
+
+        double a, b, c, d;
+        Vector3 normal;
+};
+
+class ParticleContact {
+
+    public:
+        ParticleContact(Particle *p1, Particle *p2, 
+            Vector3 contactNormal, double interpenetration);
+        Particle* getP1();
+        Particle* getP2();
+        Vector3 getContactNormal();
+        double getInterpenetration();
+        void resolve();
+
+    private:
+        Particle *p1, *p2;
+        Vector3 contactNormal;
+        double interpenetration;
+};
+
+class BallPlaneColDetect {
+
+    public:
+        static ParticleContact* checkCollision(Ball *b, Plane *p);  
+
+};
+
+class BilliardsTable {
+
+    public: 
+        BilliardsTable(Plane north, Plane south, Plane east, 
+            Plane west, Ball b);
+
+        void draw();
+        Point3 integrate(double ftime);
+        void hitBall(Vector3 vector);
+
+    private:
+        Plane north, south, east, west;
+        Ball b;
+        DragForceGenerator *drag;
+
 };
 
 #endif

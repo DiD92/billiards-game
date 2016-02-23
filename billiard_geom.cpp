@@ -16,6 +16,8 @@
 
 #define NUM_SEGMENTS 20
 #define TWICE_PI 2 * M_PI
+#define REBOUND_FACTOR 1.9 /* The closer to 1.0 the
+                               more energy absorbed */
 
 //-----------------------------------------------
 // -- AUXILIARY METHODS
@@ -112,6 +114,12 @@ Vector3 Vector3::operator * (double scalar) {
         getZ() * scalar);
 }
 
+double Vector3::operator * (const Vector3 &vector) {
+    return (getX() * vector.getX()) + 
+           (getY() * vector.getY()) + 
+           (getZ() * vector.getZ());
+}
+
 //-----------------------------------------------
 
 Particle::Particle() : mass(0.0f), position(Point3()), velocity(Vector3()),
@@ -181,6 +189,8 @@ void Ball::draw() {
     drawCircle(p.getX(), p.getY(), getRadius(), NUM_SEGMENTS, color);
 }
 
+//-----------------------------------------------
+
 DragForceGenerator::DragForceGenerator() : k1(0.27), k2(0.32) {}
 
 DragForceGenerator::DragForceGenerator(double k1, double k2) : k1(k1), 
@@ -202,7 +212,7 @@ void DragForceGenerator::setK2(double k2) {
     this->k2 = k2;
 }
 
-void DragForceGenerator::updateForce(Particle *p, double ftime) {
+void DragForceGenerator::updateForce(Particle *p) {
     Vector3 velocity = p->getVelocity();
     double speed = velocity.modulus();
 
@@ -211,6 +221,137 @@ void DragForceGenerator::updateForce(Particle *p, double ftime) {
     frictionForce = frictionForce * ((k1 * speed) + (k2 * pow(speed,2)));
 
     p->addForce(frictionForce);
+}
+
+//-----------------------------------------------
+
+Plane Plane::createPlane(Vector3 vector, Point3 point) {
+    Vector3 norm = vector.normalized();
+
+    double ax = vector.getX() * point.getX();
+    double by = vector.getY() * point.getY();
+    double cz = vector.getZ() * point.getZ();
+    double d = - (ax + by + cz);
+
+    return Plane(norm, d);
+}
+
+double Plane::distanceToPoint(Point3 point) {
+    double ax = this->a * point.getX();
+    double by = this->b * point.getY();
+    double cz = this->c * point.getZ();
+
+    return abs(ax + by + cz + d);
+}
+
+Vector3 Plane::getNormal() {
+    return this->normal;
+}
+
+Plane::Plane(Vector3 normal, double d) : a(normal.getX()), b(normal.getY()),
+    c(normal.getZ()), d(d), normal(normal) {}
+
+//-----------------------------------------------
+
+ParticleContact::ParticleContact(Particle *p1, Particle *p2, 
+    Vector3 contactNormal, double interpenetration) : p1(p1), p2(p2),
+    contactNormal(contactNormal), interpenetration(interpenetration) {}
+
+Particle* ParticleContact::getP1() {
+    return this->p1;
+}
+
+Particle* ParticleContact::getP2() {
+    return this->p2;
+}
+
+Vector3 ParticleContact::getContactNormal() {
+    return this->contactNormal;
+}
+
+double ParticleContact::getInterpenetration() {
+    return this->interpenetration;
+}
+
+void ParticleContact::resolve() {
+    if(this->p2 == NULL) {
+        //PLANE COLLSION CODE
+        if(interpenetration < 0.0) {
+            Vector3 ballPos = this->p1->getPosition();
+            ballPos = ballPos + (this->contactNormal * interpenetration);
+            this->p1->setPosition(ballPos);
+        }
+        Vector3 ballVeloc = this->p1->getVelocity();
+        Vector3 closingVeloc = this->contactNormal * 
+            (this->contactNormal * ballVeloc);
+        ballVeloc = ballVeloc - (closingVeloc * REBOUND_FACTOR);
+        this->p1->setVelocity(ballVeloc);
+    } else {
+        // BALL COLLISION CODE
+    }
+}
+
+//-----------------------------------------------
+
+ParticleContact* BallPlaneColDetect::checkCollision(Ball *b, Plane *p) {
+
+    double distance = p->distanceToPoint(b->getPosition()) - b->getRadius();
+
+    if(distance <= 0.0) {
+        return new ParticleContact(b, NULL, p->getNormal(), distance);
+    } else {
+        return NULL;
+    }
+}
+
+//-----------------------------------------------
+
+BilliardsTable::BilliardsTable(Plane north, Plane south, 
+    Plane east, Plane west, Ball b) : north(north), south(south), 
+    east(east), west(west), b(b) {
+
+        drag = new DragForceGenerator(0.03, 0.07);
+    }
+
+void BilliardsTable::draw() {
+    b.draw();
+}
+
+Point3 BilliardsTable::integrate(double ftime) {
+    b.clearForceAcumulator();
+    drag->updateForce(&b);
+
+    /*ParticleContact *cN, *cS, *cE, *cW;
+
+    cN = BallPlaneColDetect::checkCollision(&b, &north);
+    if(cN != NULL) {
+        cN->resolve();
+        std::cout << "Collision N" << std::endl;
+    }
+
+    cS = BallPlaneColDetect::checkCollision(&b, &south);
+    if(cS != NULL) {
+        cS->resolve();
+        std::cout << "Collision S" << std::endl;
+    }
+
+    cE = BallPlaneColDetect::checkCollision(&b, &east);
+    if(cE != NULL) {
+        cE->resolve();
+        std::cout << "Collision E" << std::endl;
+    }
+
+    cW = BallPlaneColDetect::checkCollision(&b, &west);
+    if(cW != NULL) {
+        cW->resolve();
+        std::cout << "Collision W" << std::endl;
+    }*/
+
+    return b.integrate(ftime);
+}
+
+void BilliardsTable::hitBall(Vector3 vector) {
+    b.setVelocity(b.getVelocity() + vector);
 }
 
 //-----------------------------------------------
