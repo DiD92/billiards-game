@@ -35,7 +35,7 @@ Ball *ball;
 
 Point3 *ballPosition;
 Vector3 *ballVelocity;
-RGBColor *color;
+RGBColor *ballColor, *tableColor;
 
 BilliardsTable *table;
 
@@ -68,11 +68,12 @@ int main(int argc,char *argv[]) {
 void initContext() {
     ballPosition = new Point3(0.5, 0.5, 0.0);
     ballVelocity = new Vector3(0.0, 0.0, 0.0);
-    color = new RGBColor(123, 123, 123);
-    ball = new Ball(0.156, *ballPosition, *ballVelocity, 0.1, *color);
+    ballColor = new RGBColor(255, 255, 255);
+    tableColor = new RGBColor(0, 102, 0);
+    ball = new Ball(0.156, *ballPosition, *ballVelocity, 0.1, *ballColor);
     Plane north = Plane::createPlane(Vector3(0.0, -1.0, 0.0), Point3(0.0, 1.0, 0.0));
-    Plane south = Plane::createPlane(Vector3(0.0, 1.0, 0.0), Point3(0.0, 0.0, 0.0));
-    Plane east = Plane::createPlane(Vector3(-1.0, 0.0, 0.0), Point3(2.0, 0.0, 0.0));
+    Plane south = Plane::createPlane(Vector3(0.0, 1.0, 0.0), Point3(2.0, 0.0, 0.0));
+    Plane east = Plane::createPlane(Vector3(-1.0, 0.0, 0.0), Point3(2.0, 1.0, 0.0));
     Plane west = Plane::createPlane(Vector3(1.0, 0.0, 0.0), Point3(0.0, 0.0, 0.0));
     table = new BilliardsTable(north, south, east, west, *ball);
 }
@@ -90,6 +91,11 @@ void initGraphicContext(int argc, char **argv) {
     glMatrixMode(GL_PROJECTION);
     gluOrtho2D(0, worldx, 0, worldy);
 
+    glClearColor(tableColor->getRed() / 255.0 ,
+                 tableColor->getGreen() / 255.0,
+                 tableColor->getBlue() / 255.0,
+                 0.0); // Clear screen color
+
     glutDisplayFunc(display);
     glutKeyboardFunc(keyboard);
     glutIdleFunc(idle);
@@ -101,7 +107,8 @@ void initGraphicContext(int argc, char **argv) {
 void cleanContext() {
     delete ballPosition;
     delete ballVelocity;
-    delete color;
+    delete ballColor;
+    delete tableColor;
     delete ball;
 }
 
@@ -110,9 +117,7 @@ double toSecondsDelta(long deltamilis) {
 }
 
 void display() {
-    glClearColor(1.0,1.0,1.0,0.0); // Clear screen color
     glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT); // Clear
-    
     table->draw();
 
     glutSwapBuffers();
@@ -122,8 +127,14 @@ void keyboard(uchar c, int x, int y) {
     char key = c;
     switch(key) {
         case ' ':
-            speedx = (double) (rand() % 20) / 10.0;
-            speedy = (double) (rand() % 20) / 10.0;
+            speedx = (double) (rand() % 23) / 10.0;
+            speedy = (double) (rand() % 31) / 10.0;
+            if(rand() % 2) {
+                speedx *= -1.0;
+            }
+            if(rand() % 2) {
+                speedy *= -1.0;
+            }
             table->hitBall(Vector3(speedx, speedy, 0.0));
             break;
         default:
@@ -137,7 +148,7 @@ void idle() {
     deltaTime = elapsedTime - lastElapsed;
     deltaSeconds = toSecondsDelta(deltaTime);
 
-    std::cout << table->integrate(deltaSeconds).getX() << std::endl;
+    table->integrate(deltaSeconds);
 
     lastElapsed = elapsedTime;
 

@@ -18,12 +18,20 @@
 #define TWICE_PI 2 * M_PI
 #define REBOUND_FACTOR 1.9 /* The closer to 1.0 the
                                more energy absorbed */
+#define LINE_SIZE 0.25
 
 //-----------------------------------------------
 // -- AUXILIARY METHODS
 //-----------------------------------------------
 
 void drawCircle(float, float, float, int, RGBColor);
+void drawDirectionLine(Ball*, float);
+
+//-----------------------------------------------
+// -- AUXILIARY VARIABLES
+//-----------------------------------------------
+
+RGBColor lineColor = RGBColor(204, 102, 0);
 
 //-----------------------------------------------
 // -- LIBRARY IMPLEMENTATION
@@ -101,11 +109,15 @@ double Vector3::modulus() {
 
 Vector3 Vector3::normalized() {
     double mod = modulus();
-    double newX = getX() / mod;
-    double newY = getY() / mod;
-    double newZ = getZ() / mod;
-
-    return Vector3(newX, newY, newZ);
+    if(mod != 0) {
+        double newX = getX() / mod;
+        double newY = getY() / mod;
+        double newZ = getZ() / mod;
+        return Vector3(newX, newY, newZ);
+    } else {
+        return Vector3();
+    }
+    
 }
 
 Vector3 Vector3::operator * (double scalar) {
@@ -241,7 +253,7 @@ double Plane::distanceToPoint(Point3 point) {
     double by = this->b * point.getY();
     double cz = this->c * point.getZ();
 
-    return abs(ax + by + cz + d);
+    return fabs(ax + by + cz + d);
 }
 
 Vector3 Plane::getNormal() {
@@ -298,7 +310,7 @@ ParticleContact* BallPlaneColDetect::checkCollision(Ball *b, Plane *p) {
     double distance = p->distanceToPoint(b->getPosition()) - b->getRadius();
 
     if(distance <= 0.0) {
-        return new ParticleContact(b, NULL, p->getNormal(), distance);
+        return new ParticleContact(b, NULL, p->getNormal() * -1.0, distance);
     } else {
         return NULL;
     }
@@ -315,37 +327,34 @@ BilliardsTable::BilliardsTable(Plane north, Plane south,
 
 void BilliardsTable::draw() {
     b.draw();
+    drawDirectionLine(&b, LINE_SIZE);
 }
 
 Point3 BilliardsTable::integrate(double ftime) {
     b.clearForceAcumulator();
     drag->updateForce(&b);
 
-    /*ParticleContact *cN, *cS, *cE, *cW;
+    ParticleContact *cN, *cS, *cE, *cW;
 
     cN = BallPlaneColDetect::checkCollision(&b, &north);
     if(cN != NULL) {
         cN->resolve();
-        std::cout << "Collision N" << std::endl;
     }
 
     cS = BallPlaneColDetect::checkCollision(&b, &south);
     if(cS != NULL) {
         cS->resolve();
-        std::cout << "Collision S" << std::endl;
     }
 
     cE = BallPlaneColDetect::checkCollision(&b, &east);
     if(cE != NULL) {
         cE->resolve();
-        std::cout << "Collision E" << std::endl;
     }
 
     cW = BallPlaneColDetect::checkCollision(&b, &west);
     if(cW != NULL) {
         cW->resolve();
-        std::cout << "Collision W" << std::endl;
-    }*/
+    }
 
     return b.integrate(ftime);
 }
@@ -369,6 +378,23 @@ void drawCircle(float cx, float cy, float r,
                 cy + (r * sin(i * TWICE_PI / numSegments))
             );
         }
+    glEnd();
+}
+
+void drawDirectionLine(Ball *b, float size) {
+    Vector3 ballPos = b->getPosition(), nBallPos;
+    Vector3 direction = b->getVelocity();
+
+    direction = direction.normalized() * size;
+    nBallPos = ballPos + direction;
+
+    glColor3ub(lineColor.getRed(), 
+        lineColor.getGreen(), lineColor.getBlue());
+    glPointSize(3.0);
+
+    glBegin(GL_LINES);
+    glVertex2f(ballPos.getX(), ballPos.getY());
+    glVertex2f(nBallPos.getX(), nBallPos.getY());
     glEnd();
 }
 
