@@ -6,6 +6,12 @@
 #define _BILLIARDS_GEOM_H_
 
 //-----------------------------------------------
+// -- EXTERNAL LIBRARIES
+//-----------------------------------------------
+
+#include <vector>
+
+//-----------------------------------------------
 // -- TYPE DEFINITIONS
 //-----------------------------------------------
 
@@ -183,6 +189,12 @@ class BallPlaneColDetect {
 
 };
 
+class BallBallColDetect {
+
+    public:
+        static ParticleContact* checkCollision(Ball *b1, Ball *b2);
+};
+
 class BilliardsTable {
 
     public: 
@@ -190,6 +202,7 @@ class BilliardsTable {
             Plane west, Ball b);
 
         void draw();
+        void addBall(Ball b);
         Point3 integrate(double ftime);
         void hitBall(Vector3 vector);
 
@@ -197,7 +210,22 @@ class BilliardsTable {
         Plane north, south, east, west;
         Ball b;
         DragForceGenerator *drag;
+        std::vector<Ball> extraBalls;
 
+};
+
+class BallGenerator {
+
+    public:
+        BallGenerator(double mass, double radius, RGBColor color);
+        void setMass(double mass);
+        void setRadius(double radius);
+        void setColor(RGBColor color);
+        Ball generate();
+        Ball generate(Point3 position);
+    private:
+        double mass, radius;
+        RGBColor color;
 };
 
 #endif

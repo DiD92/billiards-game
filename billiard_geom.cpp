@@ -299,7 +299,50 @@ void ParticleContact::resolve() {
         ballVeloc = ballVeloc - (closingVeloc * REBOUND_FACTOR);
         this->p1->setVelocity(ballVeloc);
     } else {
-        // BALL COLLISION CODE
+        //BALL COLLISION CODE
+        double d1, d2, m1, m2, im1, im2;
+
+        m1 = p1->getMass();
+        m2 = p2->getMass();
+
+        if(interpenetration < 0.0) {
+            
+
+            Vector3 ballPos;
+
+            d1 = (m2 * interpenetration) / (m1 + m2);
+            d2 = (m1 * interpenetration) / (m1 + m2);
+
+            ballPos = this->p1->getPosition();
+            ballPos = ballPos - (this->contactNormal * d1);
+            this->p1->setPosition(ballPos);
+
+            ballPos = this->p2->getPosition();
+            ballPos = ballPos + (this->contactNormal * d2);
+            this->p2->setPosition(ballPos);
+        }
+        Vector3 ballVeloc1, ballVeloc2;
+        Vector3 closingVeloc1, closingVeloc2, closingVeloc;
+
+        ballVeloc1 = this->p1->getVelocity();
+        ballVeloc2 = this->p2->getVelocity();
+
+        closingVeloc1 = this->contactNormal * 
+            (this->contactNormal * ballVeloc1);
+
+        closingVeloc2 = this->contactNormal * 
+            (this->contactNormal * ballVeloc2);
+
+        closingVeloc = closingVeloc1 - closingVeloc2;
+
+        im1 = 1.0 / m1;
+        im2 = 1.0 / m2;
+
+        ballVeloc1 = ballVeloc1 - (closingVeloc * (im1 / (im1 + im2))) * 2;
+        ballVeloc2 = ballVeloc2 + (closingVeloc * (im2 / (im1 + im2))) * 2;
+
+        this->p1->setVelocity(ballVeloc1);
+        this->p2->setVelocity(ballVeloc2);
     }
 }
 
@@ -318,24 +361,53 @@ ParticleContact* BallPlaneColDetect::checkCollision(Ball *b, Plane *p) {
 
 //-----------------------------------------------
 
+ParticleContact* BallBallColDetect::checkCollision(Ball *b1, Ball *b2) {
+
+    Vector3 distanceVector = (b1->getPosition() - b2->getPosition());
+
+    double distance = distanceVector.modulus() - 
+        (b1->getRadius() + b2->getRadius());
+
+    if(distance <= 0.0) {
+        return new ParticleContact(b1, b2, 
+            distanceVector.normalized(), distance);
+    } else {
+        return NULL;
+    }
+}
+
+//-----------------------------------------------
+
 BilliardsTable::BilliardsTable(Plane north, Plane south, 
     Plane east, Plane west, Ball b) : north(north), south(south), 
     east(east), west(west), b(b) {
 
-        drag = new DragForceGenerator(0.03, 0.07);
+        this->drag = new DragForceGenerator(0.084, 0.05);
     }
 
 void BilliardsTable::draw() {
     b.draw();
+    for (unsigned int i = 0; i < extraBalls.size(); i++) {
+        extraBalls[i].draw();
+    }
     drawDirectionLine(&b, LINE_SIZE);
+}
+
+void BilliardsTable::addBall(Ball b) {
+    this->extraBalls.push_back(b);
 }
 
 Point3 BilliardsTable::integrate(double ftime) {
     b.clearForceAcumulator();
     drag->updateForce(&b);
 
-    ParticleContact *cN, *cS, *cE, *cW;
+    for(unsigned int i = 0; i < extraBalls.size(); i++) {
+        extraBalls[i].clearForceAcumulator();
+        drag->updateForce(&extraBalls[i]);
+    }
 
+    ParticleContact *cN, *cS, *cE, *cW;
+    // WALL COLLSION CHECK MAIN BALL
     cN = BallPlaneColDetect::checkCollision(&b, &north);
     if(cN != NULL) {
         cN->resolve();
@@ -356,11 +428,89 @@ Point3 BilliardsTable::integrate(double ftime) {
         cW->resolve();
     }
 
+    //WALL COLLSION CHECK FOR EXTRA BALLS
+    for (unsigned int i = 0; i < extraBalls.size(); i++) {
+        Ball *exBall = &extraBalls[i];
+        cN = BallPlaneColDetect::checkCollision(exBall, &north);
+        if(cN != NULL) {
+            cN->resolve();
+        }
+
+        cS = BallPlaneColDetect::checkCollision(exBall, &south);
+        if(cS != NULL) {
+            cS->resolve();
+        }
+
+        cE = BallPlaneColDetect::checkCollision(exBall, &east);
+        if(cE != NULL) {
+            cE->resolve();
+        }
+
+        cW = BallPlaneColDetect::checkCollision(exBall, &west);
+        if(cW != NULL) {
+             cW->resolve();
+        }
+    }
+
+    //BALL COLLSION CHECK FOR MAIN BALL
+    ParticleContact *cB;
+
+    for (unsigned int i = 0; i < extraBalls.size(); i++) {
+        cB = BallBallColDetect::checkCollision(&b, &extraBalls[i]);
+        if(cB != NULL) {
+            cB->resolve();
+        }
+    }
+
+    //BALL COLLISION CHECK FOR EXTRA BALLS
+    if(extraBalls.size() >= 2) {
+        for(unsigned int i = 0; i < (extraBalls.size() - 1); i++) {
+            for(unsigned int j = i + 1; j < extraBalls.size(); j++) {
+                cB = BallBallColDetect::checkCollision(&extraBalls[i], 
+                    &extraBalls[j]);
+                if(cB != NULL) {
+                    cB->resolve();
+                }
+            }
+        }
+    }
+
+    for(unsigned int i = 0; i < extraBalls.size(); i++) {
+        extraBalls[i].integrate(ftime);
+    }
+
     return b.integrate(ftime);
 }
 
 void BilliardsTable::hitBall(Vector3 vector) {
     b.setVelocity(b.getVelocity() + vector);
+}
+
+//-----------------------------------------------
+
+BallGenerator::BallGenerator(double mass, double radius, RGBColor color) : 
+    mass(mass), radius(radius), color(color) {}
+
+void BallGenerator::setMass(double mass) {
+    this->mass = mass;
+}
+
+void BallGenerator::setRadius(double radius) {
+    this->radius = radius;
+}
+
+void BallGenerator::setColor(RGBColor color) {
+    this->color = color;
+}
+
+Ball BallGenerator::generate() {
+    return Ball(this->mass, Point3(), Vector3(), 
+        this->radius, this->color);
+}
+
+Ball BallGenerator::generate(Point3 position) {
+    return Ball(this->mass, position, Vector3(), 
+        this->radius, this->color);
 }
 
 //-----------------------------------------------

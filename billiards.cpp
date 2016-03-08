@@ -11,6 +11,13 @@
 #include "billiard_geom.h"
 
 //-----------------------------------------------
+// -- MACRO DEFINITION
+//-----------------------------------------------
+
+#define BALL_MASS 0.130
+#define BALL_RADIUS 0.056
+
+//-----------------------------------------------
 // -- AUXILIARY METHODS
 //-----------------------------------------------
 
@@ -31,15 +38,11 @@ void idle();
 // -- VARIABLES
 //-----------------------------------------------
 
-Ball *ball;
+Ball ball;
 
-Point3 *ballPosition;
-Vector3 *ballVelocity;
 RGBColor *ballColor, *tableColor;
-
+BallGenerator *generator;
 BilliardsTable *table;
-
-bool bounce = false;
 
 float worldx = 2.0, worldy = 1.0;
 
@@ -66,16 +69,38 @@ int main(int argc,char *argv[]) {
 //-----------------------------------------------
 
 void initContext() {
-    ballPosition = new Point3(0.5, 0.5, 0.0);
-    ballVelocity = new Vector3(0.0, 0.0, 0.0);
-    ballColor = new RGBColor(255, 255, 255);
+    generator = new BallGenerator(BALL_MASS, BALL_RADIUS, RGBColor(255, 255, 255));
+    ball = generator->generate(Point3(0.3, 0.5, 0.0));
+
     tableColor = new RGBColor(0, 102, 0);
-    ball = new Ball(0.156, *ballPosition, *ballVelocity, 0.1, *ballColor);
+
+    generator->setColor(RGBColor(230, 0, 0));
+
     Plane north = Plane::createPlane(Vector3(0.0, -1.0, 0.0), Point3(0.0, 1.0, 0.0));
     Plane south = Plane::createPlane(Vector3(0.0, 1.0, 0.0), Point3(2.0, 0.0, 0.0));
     Plane east = Plane::createPlane(Vector3(-1.0, 0.0, 0.0), Point3(2.0, 1.0, 0.0));
     Plane west = Plane::createPlane(Vector3(1.0, 0.0, 0.0), Point3(0.0, 0.0, 0.0));
-    table = new BilliardsTable(north, south, east, west, *ball);
+    table = new BilliardsTable(north, south, east, west, ball);
+
+    table->addBall(generator->generate(Point3(1.2, 0.5, 0.0)));
+
+    table->addBall(generator->generate(Point3(1.35, 0.57, 0.0)));
+    table->addBall(generator->generate(Point3(1.35, 0.43, 0.0)));
+
+    table->addBall(generator->generate(Point3(1.5, 0.64, 0.0)));
+    table->addBall(generator->generate(Point3(1.5, 0.5, 0.0)));
+    table->addBall(generator->generate(Point3(1.5, 0.36, 0.0)));
+
+    table->addBall(generator->generate(Point3(1.65, 0.71, 0.0)));
+    table->addBall(generator->generate(Point3(1.65, 0.57, 0.0)));
+    table->addBall(generator->generate(Point3(1.65, 0.43, 0.0)));
+    table->addBall(generator->generate(Point3(1.65, 0.29, 0.0)));
+
+    table->addBall(generator->generate(Point3(1.80, 0.78, 0.0)));
+    table->addBall(generator->generate(Point3(1.80, 0.64, 0.0)));
+    table->addBall(generator->generate(Point3(1.80, 0.5, 0.0)));
+    table->addBall(generator->generate(Point3(1.80, 0.36, 0.0)));
+    table->addBall(generator->generate(Point3(1.80, 0.22, 0.0)));
 }
 
 void initGraphicContext(int argc, char **argv) {
@@ -105,11 +130,10 @@ void initGraphicContext(int argc, char **argv) {
 }
 
 void cleanContext() {
-    delete ballPosition;
-    delete ballVelocity;
     delete ballColor;
     delete tableColor;
-    delete ball;
+    delete table;
+    delete generator;
 }
 
 double toSecondsDelta(long deltamilis) {
