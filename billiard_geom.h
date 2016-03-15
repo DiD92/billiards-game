@@ -128,6 +128,14 @@ class Ball : public Particle, public IDrawable {
 
 };
 
+class Hole : public Ball {
+
+    public:
+        Hole(Point3 position, double radius);
+        ~Hole();
+
+};
+
 class IForceGenerator {
 
     public:
@@ -195,6 +203,12 @@ class BallBallColDetect {
         static ParticleContact* checkCollision(Ball *b1, Ball *b2);
 };
 
+class BallHoleColDetect {
+
+    public:
+        static bool checkCollision(Ball *b, Hole *h);
+};
+
 class BilliardsTable {
 
     public: 
@@ -203,14 +217,19 @@ class BilliardsTable {
 
         void draw();
         void addBall(Ball b);
-        Point3 integrate(double ftime);
+        void addHole(Hole h);
+        Point3* integrate(double ftime);
         void hitBall(Vector3 vector);
+
+        bool resetReady();
+        void resetBall();
 
     private:
         Plane north, south, east, west;
         Ball b;
         DragForceGenerator *drag;
         std::vector<Ball> extraBalls;
+        std::vector<Hole> tableHoles;
 
 };
 
@@ -223,9 +242,17 @@ class BallGenerator {
         void setColor(RGBColor color);
         Ball generate();
         Ball generate(Point3 position);
-    private:
+    protected:
         double mass, radius;
         RGBColor color;
+};
+
+class HoleGenerator : BallGenerator {
+
+    public:
+        HoleGenerator(double radius);
+        void setRadius(double radius);
+        Hole generate(Point3 position);
 };
 
 #endif

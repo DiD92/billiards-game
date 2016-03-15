@@ -17,6 +17,8 @@
 #define BALL_MASS 0.130
 #define BALL_RADIUS 0.056
 
+#define HOLE_RADIUS 0.112
+
 //-----------------------------------------------
 // -- AUXILIARY METHODS
 //-----------------------------------------------
@@ -38,10 +40,13 @@ void idle();
 // -- VARIABLES
 //-----------------------------------------------
 
+extern bool ballInHole;
+
 Ball ball;
 
 RGBColor *ballColor, *tableColor;
 BallGenerator *generator;
+HoleGenerator *holeGenerator;
 BilliardsTable *table;
 
 float worldx = 2.0, worldy = 1.0;
@@ -70,6 +75,7 @@ int main(int argc,char *argv[]) {
 
 void initContext() {
     generator = new BallGenerator(BALL_MASS, BALL_RADIUS, RGBColor(255, 255, 255));
+    holeGenerator = new HoleGenerator(HOLE_RADIUS);
     ball = generator->generate(Point3(0.3, 0.5, 0.0));
 
     tableColor = new RGBColor(0, 102, 0);
@@ -101,6 +107,13 @@ void initContext() {
     table->addBall(generator->generate(Point3(1.80, 0.5, 0.0)));
     table->addBall(generator->generate(Point3(1.80, 0.36, 0.0)));
     table->addBall(generator->generate(Point3(1.80, 0.22, 0.0)));
+
+    table->addHole(holeGenerator->generate(Point3(0.04,0.02,0.0)));
+    table->addHole(holeGenerator->generate(Point3(worldx/2,0.02,0.0)));
+    table->addHole(holeGenerator->generate(Point3(worldx - 0.02,0.02,0.0)));
+    table->addHole(holeGenerator->generate(Point3(0.04,worldy - 0.02,0.0)));
+    table->addHole(holeGenerator->generate(Point3(worldx/2,worldy - 0.02,0.0)));
+    table->addHole(holeGenerator->generate(Point3(worldx - 0.02,worldy - 0.02,0.0)));
 }
 
 void initGraphicContext(int argc, char **argv) {
@@ -149,6 +162,9 @@ void display() {
 
 void keyboard(uchar c, int x, int y) {
     char key = c;
+    if(ballInHole) {
+        return;
+    }
     switch(key) {
         case ' ':
             speedx = (double) (rand() % 23) / 10.0;
@@ -172,7 +188,11 @@ void idle() {
     deltaTime = elapsedTime - lastElapsed;
     deltaSeconds = toSecondsDelta(deltaTime);
 
-    table->integrate(deltaSeconds);
+    if(table->integrate(deltaSeconds) == NULL) {
+        if(table->resetReady()) {
+            table->resetBall();
+        }
+    }
 
     lastElapsed = elapsedTime;
 

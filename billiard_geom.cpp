@@ -5,6 +5,7 @@
 #include <GL/glut.h>
 #include <cmath>
 #include <iostream>
+#include <limits>
 
 //-----------------------------------------------
 
@@ -15,10 +16,13 @@
 //-----------------------------------------------
 
 #define NUM_SEGMENTS 20
+#define VEL_THRESHOLD 0.008
 #define TWICE_PI 2 * M_PI
 #define REBOUND_FACTOR 1.9 /* The closer to 1.0 the
                                more energy absorbed */
 #define LINE_SIZE 0.25
+#define DOUBLE_INF std::numeric_limits<double>::infinity()
+#define RGB_BLACK RGBColor()
 
 //-----------------------------------------------
 // -- AUXILIARY METHODS
@@ -32,6 +36,8 @@ void drawDirectionLine(Ball*, float);
 //-----------------------------------------------
 
 RGBColor lineColor = RGBColor(204, 102, 0);
+
+bool ballInHole = false;
 
 //-----------------------------------------------
 // -- LIBRARY IMPLEMENTATION
@@ -165,6 +171,10 @@ Point3 Particle::integrate(double ftime) {
     this->setPosition(getPosition() + (getVelocity() * ftime));
     this->setVelocity(getVelocity() + (this->acceleration * ftime));
 
+    if(this->getVelocity().modulus() <= VEL_THRESHOLD) {
+        this->setVelocity(Vector3());
+    }
+
     return getPosition();
 }
 
@@ -179,7 +189,7 @@ void Particle::clearForceAcumulator() {
 
 //-----------------------------------------------
 
-Ball::Ball() : Particle(), radius(0.0), color(RGBColor()) {}
+Ball::Ball() : Particle(), radius(0.0), color(RGB_BLACK) {}
 
 Ball::Ball(double mass, Point3 position, Vector3 velocity, double radius, 
             RGBColor color) : Particle(mass, position, velocity), 
@@ -199,6 +209,15 @@ void Ball::draw() {
     //CODE HERE
     Point3 p = getPosition();
     drawCircle(p.getX(), p.getY(), getRadius(), NUM_SEGMENTS, color);
+}
+
+//-----------------------------------------------
+
+Hole::Hole(Point3 position, double radius) : Ball(DOUBLE_INF, position, 
+    Vector3(), radius, RGB_BLACK) {}
+
+Hole::~Hole() {
+    //CODE HERE
 }
 
 //-----------------------------------------------
@@ -378,6 +397,33 @@ ParticleContact* BallBallColDetect::checkCollision(Ball *b1, Ball *b2) {
 
 //-----------------------------------------------
 
+bool BallHoleColDetect::checkCollision(Ball *b, Hole *h) {
+
+    Vector3 distanceVector = (b->getPosition() - h->getPosition());
+
+    double distance = distanceVector.modulus();
+
+    if(distance <= h->getRadius()) {
+        Vector3 v1 = b->getVelocity().normalized();
+        Vector3 v2 = distanceVector.normalized();
+
+        double n1 = v1 * v2;
+        double n2 = v1.modulus() * v2.modulus();
+        double alpha = (1 - fabs(n1 / n2));
+
+        if(distance <= (b->getRadius() * (1 - alpha)) + 
+            (h->getRadius() * alpha)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    return false;
+}
+
+//-----------------------------------------------
+
 BilliardsTable::BilliardsTable(Plane north, Plane south, 
     Plane east, Plane west, Ball b) : north(north), south(south), 
     east(east), west(west), b(b) {
@@ -386,7 +432,12 @@ BilliardsTable::BilliardsTable(Plane north, Plane south,
     }
 
 void BilliardsTable::draw() {
+    for (unsigned int i = 0; i < tableHoles.size(); i++) {
+        tableHoles[i].draw();
+    }
+
     b.draw();
+
     for (unsigned int i = 0; i < extraBalls.size(); i++) {
         extraBalls[i].draw();
     }
@@ -397,7 +448,11 @@ void BilliardsTable::addBall(Ball b) {
     this->extraBalls.push_back(b);
 }
 
-Point3 BilliardsTable::integrate(double ftime) {
+void BilliardsTable::addHole(Hole h) {
+    this->tableHoles.push_back(h);
+}
+
+Point3* BilliardsTable::integrate(double ftime) {
     b.clearForceAcumulator();
     drag->updateForce(&b);
 
@@ -406,8 +461,23 @@ Point3 BilliardsTable::integrate(double ftime) {
         drag->updateForce(&extraBalls[i]);
     }
 
+    //HOLE COLLISION CHECK FOR BALLS
+    for(unsigned int i = 0; i < tableHoles.size(); i++) {
+        if(BallHoleColDetect::checkCollision(&b, &tableHoles[i])) {
+            b.setVelocity(Vector3());
+            b.setPosition(tableHoles[i].getPosition() + Vector3(0.0,0.0,2.0));
+            ballInHole = true;
+        }
+        for(unsigned int j = 0; j < extraBalls.size(); j++) {
+            if(BallHoleColDetect::checkCollision(&extraBalls[j], 
+                &tableHoles[i])) {
+                extraBalls.erase(extraBalls.begin() + j);
+            }
+        }
+    }
+
     ParticleContact *cN, *cS, *cE, *cW;
-    // WALL COLLSION CHECK MAIN BALL
+    // WALL COLLISION CHECK MAIN BALL
     cN = BallPlaneColDetect::checkCollision(&b, &north);
     if(cN != NULL) {
         cN->resolve();
@@ -479,11 +549,31 @@ Point3 BilliardsTable::integrate(double ftime) {
         extraBalls[i].integrate(ftime);
     }
 
-    return b.integrate(ftime);
+    if(ballInHole) {
+        return NULL;
+    }
+
+    return new Point3(b.integrate(ftime));
 }
 
 void BilliardsTable::hitBall(Vector3 vector) {
     b.setVelocity(b.getVelocity() + vector);
+}
+
+bool BilliardsTable::resetReady() {
+    for(unsigned int i = 0; i < extraBalls.size(); i++) {
+        Vector3 v = extraBalls[i].getVelocity();
+        if(v.getX() != 0.0 || v.getY() != 0.0) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+void BilliardsTable::resetBall() {
+    b.setPosition(Point3(0.5,0.5,0.0));
+    ballInHole = false;
 }
 
 //-----------------------------------------------
@@ -511,6 +601,19 @@ Ball BallGenerator::generate() {
 Ball BallGenerator::generate(Point3 position) {
     return Ball(this->mass, position, Vector3(), 
         this->radius, this->color);
+}
+
+//-----------------------------------------------
+
+HoleGenerator::HoleGenerator(double radius) : BallGenerator(DOUBLE_INF, 
+    radius, RGB_BLACK) {}
+
+void HoleGenerator::setRadius(double radius) {
+    this->radius = radius;
+}
+
+Hole HoleGenerator::generate(Point3 position) {
+    return Hole(position, this->radius);
 }
 
 //-----------------------------------------------
