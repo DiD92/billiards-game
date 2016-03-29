@@ -18,8 +18,8 @@
 #define NUM_SEGMENTS 20
 #define VEL_THRESHOLD 0.008
 #define TWICE_PI 2 * M_PI
-#define REBOUND_FACTOR 1.9 /* The closer to 1.0 the
-                               more energy absorbed */
+#define REBOUND_FACTOR 1.9 // The closer to 1.0 the more energy absorbed
+#define IMPULSE_FACTOR 2.0
 #define LINE_SIZE 0.25
 #define DOUBLE_INF std::numeric_limits<double>::infinity()
 #define RGB_BLACK RGBColor()
@@ -38,6 +38,7 @@ void drawDirectionLine(Ball*, float);
 RGBColor lineColor = RGBColor(204, 102, 0);
 
 bool ballInHole = false;
+bool ballMoving = false;
 
 //-----------------------------------------------
 // -- LIBRARY IMPLEMENTATION
@@ -549,6 +550,11 @@ Point3* BilliardsTable::integrate(double ftime) {
         extraBalls[i].integrate(ftime);
     }
 
+    if(ballMoving) {
+        b.integrate(ftime);
+        return NULL;
+    }
+
     if(ballInHole) {
         return NULL;
     }
@@ -556,8 +562,9 @@ Point3* BilliardsTable::integrate(double ftime) {
     return new Point3(b.integrate(ftime));
 }
 
-void BilliardsTable::hitBall(Vector3 vector) {
-    b.setVelocity(b.getVelocity() + vector);
+void BilliardsTable::hitBall(Point3 position) {
+
+    b.setVelocity(Vector3(position - b.getPosition()) * IMPULSE_FACTOR);
 }
 
 bool BilliardsTable::resetReady() {
@@ -566,6 +573,15 @@ bool BilliardsTable::resetReady() {
         if(v.getX() != 0.0 || v.getY() != 0.0) {
             return false;
         }
+    }
+
+    return true;
+}
+
+bool BilliardsTable::mainBallMoving() {
+    Vector3 bv = b.getVelocity();
+    if(bv.getX() == 0.0 && bv.getY() == 0.0) {
+        return false;
     }
 
     return true;

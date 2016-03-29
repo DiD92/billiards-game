@@ -219,9 +219,10 @@ class BilliardsTable {
         void addBall(Ball b);
         void addHole(Hole h);
         Point3* integrate(double ftime);
-        void hitBall(Vector3 vector);
+        void hitBall(Point3 vector);
 
         bool resetReady();
+        bool mainBallMoving();
         void resetBall();
 
     private:

@@ -19,6 +19,8 @@
 
 #define HOLE_RADIUS 0.112
 
+#define SCREEN_BASE 640
+
 //-----------------------------------------------
 // -- AUXILIARY METHODS
 //-----------------------------------------------
@@ -27,6 +29,7 @@ void initContext();
 void initGraphicContext(int, char**);
 void cleanContext();
 double toSecondsDelta(long);
+extern void drawCircle(float, float, float, int, RGBColor);
 
 //-----------------------------------------------
 // -- DISPLAY METHODS
@@ -34,6 +37,8 @@ double toSecondsDelta(long);
 
 void display();
 void keyboard(uchar, int, int);
+void mouse(int, int, int, int);
+void passiveMouse(int, int);
 void idle();
 
 //-----------------------------------------------
@@ -41,6 +46,7 @@ void idle();
 //-----------------------------------------------
 
 extern bool ballInHole;
+extern bool ballMoving;
 
 Ball ball;
 
@@ -51,7 +57,7 @@ BilliardsTable *table;
 
 float worldx = 2.0, worldy = 1.0;
 
-double speedx, speedy;
+double mousepx, mousepy;
 
 long elapsedTime, deltaTime, lastElapsed;
 double deltaSeconds;
@@ -74,7 +80,9 @@ int main(int argc,char *argv[]) {
 //-----------------------------------------------
 
 void initContext() {
-    generator = new BallGenerator(BALL_MASS, BALL_RADIUS, RGBColor(255, 255, 255));
+    generator = new BallGenerator(BALL_MASS, BALL_RADIUS, 
+        RGBColor(255, 255, 255));
+
     holeGenerator = new HoleGenerator(HOLE_RADIUS);
     ball = generator->generate(Point3(0.3, 0.5, 0.0));
 
@@ -82,10 +90,14 @@ void initContext() {
 
     generator->setColor(RGBColor(230, 0, 0));
 
-    Plane north = Plane::createPlane(Vector3(0.0, -1.0, 0.0), Point3(0.0, 1.0, 0.0));
-    Plane south = Plane::createPlane(Vector3(0.0, 1.0, 0.0), Point3(2.0, 0.0, 0.0));
-    Plane east = Plane::createPlane(Vector3(-1.0, 0.0, 0.0), Point3(2.0, 1.0, 0.0));
-    Plane west = Plane::createPlane(Vector3(1.0, 0.0, 0.0), Point3(0.0, 0.0, 0.0));
+    Plane north = Plane::createPlane(Vector3(0.0, -1.0, 0.0), 
+        Point3(0.0, 1.0, 0.0));
+    Plane south = Plane::createPlane(Vector3(0.0, 1.0, 0.0), 
+        Point3(2.0, 0.0, 0.0));
+    Plane east = Plane::createPlane(Vector3(-1.0, 0.0, 0.0), 
+        Point3(2.0, 1.0, 0.0));
+    Plane west = Plane::createPlane(Vector3(1.0, 0.0, 0.0), 
+        Point3(0.0, 0.0, 0.0));
     table = new BilliardsTable(north, south, east, west, ball);
 
     table->addBall(generator->generate(Point3(1.2, 0.5, 0.0)));
@@ -111,9 +123,12 @@ void initContext() {
     table->addHole(holeGenerator->generate(Point3(0.04,0.02,0.0)));
     table->addHole(holeGenerator->generate(Point3(worldx/2,0.02,0.0)));
     table->addHole(holeGenerator->generate(Point3(worldx - 0.02,0.02,0.0)));
-    table->addHole(holeGenerator->generate(Point3(0.04,worldy - 0.02,0.0)));
-    table->addHole(holeGenerator->generate(Point3(worldx/2,worldy - 0.02,0.0)));
-    table->addHole(holeGenerator->generate(Point3(worldx - 0.02,worldy - 0.02,0.0)));
+    table->addHole(holeGenerator->generate(Point3(0.04,
+        worldy - 0.02,0.0)));
+    table->addHole(holeGenerator->generate(Point3(worldx/2,
+        worldy - 0.02,0.0)));
+    table->addHole(holeGenerator->generate(Point3(worldx - 0.02,
+        worldy - 0.02,0.0)));
 }
 
 void initGraphicContext(int argc, char **argv) {
@@ -122,7 +137,7 @@ void initGraphicContext(int argc, char **argv) {
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
 
     glutInitWindowPosition(300, 200);
-    glutInitWindowSize(640, 640 * (worldy / worldx));
+    glutInitWindowSize(SCREEN_BASE, SCREEN_BASE * (worldy / worldx));
 
     glutCreateWindow("Billiards Game");
 
@@ -136,6 +151,8 @@ void initGraphicContext(int argc, char **argv) {
 
     glutDisplayFunc(display);
     glutKeyboardFunc(keyboard);
+    glutMouseFunc(mouse);
+    glutPassiveMotionFunc(passiveMouse);
     glutIdleFunc(idle);
     glutCloseFunc(cleanContext);
 
@@ -147,6 +164,7 @@ void cleanContext() {
     delete tableColor;
     delete table;
     delete generator;
+    delete holeGenerator;
 }
 
 double toSecondsDelta(long deltamilis) {
@@ -157,30 +175,32 @@ void display() {
     glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT); // Clear
     table->draw();
 
+    drawCircle(mousepx, mousepy, 0.01, 20, RGBColor(255, 255, 0));
+
     glutSwapBuffers();
 }
 
 void keyboard(uchar c, int x, int y) {
-    char key = c;
-    if(ballInHole) {
-        return;
+    // PASS
+}
+
+void mouse(int button, int state, int x, int y) {
+
+    if(!ballInHole && !ballMoving) {
+        double px = (double) x / 320.0;
+        double py = 1 - ((double) y / 320.0);
+
+        Point3 p = Point3(px, py, 0.0);
+        table->hitBall(p);
+        ballMoving = true;
     }
-    switch(key) {
-        case ' ':
-            speedx = (double) (rand() % 23) / 10.0;
-            speedy = (double) (rand() % 31) / 10.0;
-            if(rand() % 2) {
-                speedx *= -1.0;
-            }
-            if(rand() % 2) {
-                speedy *= -1.0;
-            }
-            table->hitBall(Vector3(speedx, speedy, 0.0));
-            break;
-        default:
-            break;
-    }
+
     glutPostRedisplay();
+}
+
+void passiveMouse(int x, int y) {
+    mousepx = (double) x / 320.0;
+    mousepy = 1 - ((double) y / 320.0);
 }
 
 void idle() {
@@ -190,7 +210,11 @@ void idle() {
 
     if(table->integrate(deltaSeconds) == NULL) {
         if(table->resetReady()) {
-            table->resetBall();
+            if(ballInHole) {
+                table->resetBall();
+            } else if(!table->mainBallMoving()) {
+                ballMoving = false;
+            }
         }
     }
 
