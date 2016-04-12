@@ -22,7 +22,17 @@
 #define IMPULSE_FACTOR 2.0
 #define LINE_SIZE 0.25
 #define DOUBLE_INF std::numeric_limits<double>::infinity()
+
+#define BALL_MASS 0.130
+#define BALL_RADIUS 0.056
+
+#define HOLE_RADIUS 0.112
+
 #define RGB_BLACK RGBColor()
+#define RGB_GREY RGBColor(128, 128, 128)
+#define RGB_WHITE RGBColor(255, 255, 255)
+#define RGB_RED RGBColor(204, 0, 0)
+#define RGB_BLUE RGBColor(51, 51, 255)
 
 //-----------------------------------------------
 // -- AUXILIARY METHODS
@@ -190,11 +200,15 @@ void Particle::clearForceAcumulator() {
 
 //-----------------------------------------------
 
-Ball::Ball() : Particle(), radius(0.0), color(RGB_BLACK) {}
+Ball::Ball() : Particle(), number(0), radius(0.0) {
+    setBallType();
+}
 
-Ball::Ball(double mass, Point3 position, Vector3 velocity, double radius, 
-            RGBColor color) : Particle(mass, position, velocity), 
-            radius(radius), color(color) {}
+Ball::Ball(int number, double mass, Point3 position, Vector3 velocity, 
+    double radius) : Particle(mass, position, velocity), 
+    number(number), radius(radius) {
+        setBallType();
+    }
 
 Ball::~Ball() {
     //CODE HERE
@@ -204,18 +218,50 @@ double Ball::getRadius() { return this->radius; }
 
 void Ball::setRadius(double radius) { this->radius = radius; }
 
-void Ball::setColor(RGBColor color) { this->color = color; }
+bool Ball::isOnTable() {
+    return (this->onTable);
+}
 
 void Ball::draw() {
-    //CODE HERE
     Point3 p = getPosition();
     drawCircle(p.getX(), p.getY(), getRadius(), NUM_SEGMENTS, color);
 }
 
+void Ball::setBallType() {
+    int num = this->number;
+    if(num > 0 && num < 8) {
+        this->type = SOLID;
+    } else if (num > 8 && num < 16) {
+        this->type = STRIPED;
+    } else if (num == 8) {
+        this->type = EIGHT;
+    } else if (num == 0) {
+        this->type = CUE;
+    } else {
+        this->type = UNASSIGNED;
+    }
+    setBallColor();
+}
+
+void Ball::setBallColor() {
+    int num = this->number;
+    if(num > 0 && num < 8) {
+        this->color = RGB_RED;
+    } else if (num > 8 && num < 16) {
+        this->color = RGB_BLUE;
+    } else if (num == 8) {
+        this->color = RGB_BLACK;
+    } else if (num == 0) {
+        this->color = RGB_WHITE;
+    } else {
+        this->color = RGB_GREY;
+    }
+}
+
 //-----------------------------------------------
 
-Hole::Hole(Point3 position, double radius) : Ball(DOUBLE_INF, position, 
-    Vector3(), radius, RGB_BLACK) {}
+Hole::Hole(Point3 position, double radius) : Ball(8, DOUBLE_INF, position, 
+    Vector3(), radius) {}
 
 Hole::~Hole() {
     //CODE HERE
@@ -425,36 +471,35 @@ bool BallHoleColDetect::checkCollision(Ball *b, Hole *h) {
 
 //-----------------------------------------------
 
-BilliardsTable::BilliardsTable(Plane north, Plane south, 
-    Plane east, Plane west, Ball b) : north(north), south(south), 
-    east(east), west(west), b(b) {
-
+BilliardsTable::BilliardsTable(double w, double h, Plane north, Plane south, 
+    Plane east, Plane west) {
+        planes[0] = &north;
+        planes[1] = &south;
+        planes[2] = &east;
+        planes[3] = &west;
+        this->width = w;
+        this->height = h;
         this->drag = new DragForceGenerator(0.084, 0.05);
+        initTable();
     }
 
 void BilliardsTable::draw() {
-    for (unsigned int i = 0; i < tableHoles.size(); i++) {
-        tableHoles[i].draw();
+    for(int i = 0; i < 6; i++) {
+        holes[i]->draw();
     }
 
-    b.draw();
-
-    for (unsigned int i = 0; i < extraBalls.size(); i++) {
-        extraBalls[i].draw();
+    for(int i = 0; i < 16; i++) {
+        if(balls[i].isOnTable()) {
+            balls[i].draw();
+        }
     }
-    drawDirectionLine(&b, LINE_SIZE);
+
+    drawDirectionLine(&balls[0], LINE_SIZE);
 }
 
-void BilliardsTable::addBall(Ball b) {
-    this->extraBalls.push_back(b);
-}
-
-void BilliardsTable::addHole(Hole h) {
-    this->tableHoles.push_back(h);
-}
-
+//LOTS OF CHANGES TO DO HERE
 Point3* BilliardsTable::integrate(double ftime) {
-    b.clearForceAcumulator();
+    /*b.clearForceAcumulator();
     drag->updateForce(&b);
 
     for(unsigned int i = 0; i < extraBalls.size(); i++) {
@@ -559,43 +604,70 @@ Point3* BilliardsTable::integrate(double ftime) {
         return NULL;
     }
 
-    return new Point3(b.integrate(ftime));
+    return new Point3(b.integrate(ftime));*/
+    return NULL;
 }
 
 void BilliardsTable::hitBall(Point3 position) {
+
+    Ball b = this->balls[0];
 
     b.setVelocity(Vector3(position - b.getPosition()) * IMPULSE_FACTOR);
 }
 
 bool BilliardsTable::resetReady() {
-    for(unsigned int i = 0; i < extraBalls.size(); i++) {
+    /*for(unsigned int i = 0; i < extraBalls.size(); i++) {
         Vector3 v = extraBalls[i].getVelocity();
         if(v.getX() != 0.0 || v.getY() != 0.0) {
             return false;
         }
-    }
+    }*/
 
     return true;
 }
 
 bool BilliardsTable::mainBallMoving() {
-    Vector3 bv = b.getVelocity();
+    /*Vector3 bv = b.getVelocity();
     if(bv.getX() == 0.0 && bv.getY() == 0.0) {
         return false;
-    }
+    }*/
 
     return true;
 }
 
 void BilliardsTable::resetBall() {
-    b.setPosition(Point3(0.5,0.5,0.0));
-    ballInHole = false;
+    /*b.setPosition(Point3(0.5,0.5,0.0));
+    ballInHole = false;*/
+}
+
+void BilliardsTable::initTable() {
+    BallGenerator *bgen = new BallGenerator(BALL_MASS, BALL_RADIUS);
+    HoleGenerator *hgen = new HoleGenerator(HOLE_RADIUS);
+
+    double w = this->width, iw = w / 2.0, pw = 0.0;
+    double h = this->height, ph = h;
+
+    w = w + 1.0;
+
+    std::cout << w << " -- " << iw << std::endl;
+
+    for(int i = 0; i < 2; i++, ph = (ph - h)) {
+        for(int j = 0; j < 3; j++, pw = fmod(pw + iw, w)) {
+            holes[(3 * i) + j] = hgen->generate(Point3(pw, ph, 0.0));
+        }
+    }
+
+    for(int i = 0; i < 5; i++) {
+        for(j = 0; j < (i+1); j++) {
+            //FILL BALLS
+        }
+    }
 }
 
 //-----------------------------------------------
 
-BallGenerator::BallGenerator(double mass, double radius, RGBColor color) : 
-    mass(mass), radius(radius), color(color) {}
+BallGenerator::BallGenerator(double mass, double radius) : 
+    mass(mass), radius(radius) {}
 
 void BallGenerator::setMass(double mass) {
     this->mass = mass;
@@ -605,31 +677,26 @@ void BallGenerator::setRadius(double radius) {
     this->radius = radius;
 }
 
-void BallGenerator::setColor(RGBColor color) {
-    this->color = color;
+Ball BallGenerator::generate(int num) {
+    return generate(num, Vector3());
 }
 
-Ball BallGenerator::generate() {
-    return Ball(this->mass, Point3(), Vector3(), 
-        this->radius, this->color);
-}
-
-Ball BallGenerator::generate(Point3 position) {
-    return Ball(this->mass, position, Vector3(), 
-        this->radius, this->color);
+Ball BallGenerator::generate(int num, Point3 position) {
+    return Ball(num, this->mass, position, Vector3(), 
+        this->radius);
 }
 
 //-----------------------------------------------
 
 HoleGenerator::HoleGenerator(double radius) : BallGenerator(DOUBLE_INF, 
-    radius, RGB_BLACK) {}
+    radius) {}
 
 void HoleGenerator::setRadius(double radius) {
     this->radius = radius;
 }
 
-Hole HoleGenerator::generate(Point3 position) {
-    return Hole(position, this->radius);
+Hole* HoleGenerator::generate(Point3 position) {
+    return new Hole(position, this->radius);
 }
 
 //-----------------------------------------------

@@ -21,6 +21,8 @@ typedef unsigned char uchar;
 // -- LIBRARY DEFINITIONS
 //-----------------------------------------------
 
+enum BallType { CUE, SOLID, EIGHT, STRIPED, UNASSIGNED };
+
 class IDrawable {
 
     public:    
@@ -112,19 +114,25 @@ class Ball : public Particle, public IDrawable {
 
     public:
         Ball();
-        Ball(double mass, Point3 position, Vector3 velocity, double radius, 
-            RGBColor color);
+        Ball(int number, double mass, Point3 position, 
+            Vector3 velocity, double radius);
         ~Ball();
 
         double getRadius();
         void setRadius(double radius);
-        void setColor(RGBColor color);
+        bool isOnTable();
 
         void draw();
 
     private:
+        void setBallType();
+        void setBallColor();
+
+        int number;
         double radius;
         RGBColor color;
+        BallType type;
+        bool onTable;
 
 };
 
@@ -212,12 +220,10 @@ class BallHoleColDetect {
 class BilliardsTable {
 
     public: 
-        BilliardsTable(Plane north, Plane south, Plane east, 
-            Plane west, Ball b);
+        BilliardsTable(double w, double h, Plane north, Plane south, Plane east, 
+            Plane west);
 
         void draw();
-        void addBall(Ball b);
-        void addHole(Hole h);
         Point3* integrate(double ftime);
         void hitBall(Point3 vector);
 
@@ -226,26 +232,27 @@ class BilliardsTable {
         void resetBall();
 
     private:
-        Plane north, south, east, west;
-        Ball b;
+        void initTable();
+
+        double width, height;
+        Plane *planes[4];
+        Hole *holes[6];
+        Ball balls[16];
+
         DragForceGenerator *drag;
-        std::vector<Ball> extraBalls;
-        std::vector<Hole> tableHoles;
 
 };
 
 class BallGenerator {
 
     public:
-        BallGenerator(double mass, double radius, RGBColor color);
+        BallGenerator(double mass, double radius);
         void setMass(double mass);
         void setRadius(double radius);
-        void setColor(RGBColor color);
-        Ball generate();
-        Ball generate(Point3 position);
+        Ball generate(int num);
+        Ball generate(int num, Point3 position);
     protected:
         double mass, radius;
-        RGBColor color;
 };
 
 class HoleGenerator : BallGenerator {
@@ -253,7 +260,7 @@ class HoleGenerator : BallGenerator {
     public:
         HoleGenerator(double radius);
         void setRadius(double radius);
-        Hole generate(Point3 position);
+        Hole* generate(Point3 position);
 };
 
 #endif
