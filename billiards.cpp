@@ -72,13 +72,13 @@ int main(int argc,char *argv[]) {
 //-----------------------------------------------
 
 void initContext() {
-    Plane north = Plane::createPlane(Vector3(0.0, -1.0, 0.0), 
+    Plane *north = Plane::createPlane(Vector3(0.0, -1.0, 0.0), 
         Point3(0.0, 1.0, 0.0));
-    Plane south = Plane::createPlane(Vector3(0.0, 1.0, 0.0), 
+    Plane *south = Plane::createPlane(Vector3(0.0, 1.0, 0.0), 
         Point3(2.0, 0.0, 0.0));
-    Plane east = Plane::createPlane(Vector3(-1.0, 0.0, 0.0), 
+    Plane *east = Plane::createPlane(Vector3(-1.0, 0.0, 0.0), 
         Point3(2.0, 1.0, 0.0));
-    Plane west = Plane::createPlane(Vector3(1.0, 0.0, 0.0), 
+    Plane *west = Plane::createPlane(Vector3(1.0, 0.0, 0.0), 
         Point3(0.0, 0.0, 0.0));
     table = new BilliardsTable(worldx, worldy, north, south, east, west);
 }
@@ -134,7 +134,7 @@ void keyboard(uchar c, int x, int y) {
 
 void mouse(int button, int state, int x, int y) {
 
-    if(!ballInHole && !ballMoving) {
+    /*if(!ballInHole && !ballMoving) {
         double px = (double) x / 320.0;
         double py = 1 - ((double) y / 320.0);
 
@@ -143,7 +143,7 @@ void mouse(int button, int state, int x, int y) {
         ballMoving = true;
     }
 
-    glutPostRedisplay();
+    glutPostRedisplay();*/
 }
 
 void passiveMouse(int x, int y) {
@@ -157,13 +157,13 @@ void idle() {
     deltaSeconds = toSecondsDelta(deltaTime);
 
     if(table->integrate(deltaSeconds) == NULL) {
-        if(table->resetReady()) {
+        /*if(table->resetReady()) {
             if(ballInHole) {
                 table->resetBall();
             } else if(!table->mainBallMoving()) {
                 ballMoving = false;
             }
-        }
+        }*/
     }
 
     lastElapsed = elapsedTime;

@@ -120,6 +120,7 @@ class Ball : public Particle, public IDrawable {
 
         double getRadius();
         void setRadius(double radius);
+        void setOnTable(bool onTable);
         bool isOnTable();
 
         void draw();
@@ -170,7 +171,7 @@ class DragForceGenerator : IForceGenerator {
 class Plane {
 
     public:
-        static Plane createPlane(Vector3 vector, Point3 point);
+        static Plane* createPlane(Vector3 vector, Point3 point);
         double distanceToPoint(Point3 point);
         Vector3 getNormal();
 
@@ -220,8 +221,8 @@ class BallHoleColDetect {
 class BilliardsTable {
 
     public: 
-        BilliardsTable(double w, double h, Plane north, Plane south, Plane east, 
-            Plane west);
+        BilliardsTable(double w, double h, Plane *north, Plane *south, Plane *east, 
+            Plane *west);
 
         void draw();
         Point3* integrate(double ftime);
@@ -237,7 +238,7 @@ class BilliardsTable {
         double width, height;
         Plane *planes[4];
         Hole *holes[6];
-        Ball balls[16];
+        Ball *balls[16];
 
         DragForceGenerator *drag;
 
@@ -249,8 +250,8 @@ class BallGenerator {
         BallGenerator(double mass, double radius);
         void setMass(double mass);
         void setRadius(double radius);
-        Ball generate(int num);
-        Ball generate(int num, Point3 position);
+        Ball* generate(int num);
+        Ball* generate(int num, Point3 position);
     protected:
         double mass, radius;
 };

@@ -218,6 +218,10 @@ double Ball::getRadius() { return this->radius; }
 
 void Ball::setRadius(double radius) { this->radius = radius; }
 
+void Ball::setOnTable(bool onTable) {
+    this->onTable = onTable;
+}
+
 bool Ball::isOnTable() {
     return (this->onTable);
 }
@@ -303,7 +307,8 @@ void DragForceGenerator::updateForce(Particle *p) {
 
 //-----------------------------------------------
 
-Plane Plane::createPlane(Vector3 vector, Point3 point) {
+Plane* Plane::createPlane(Vector3 vector, Point3 point) {
+    Plane *p;
     Vector3 norm = vector.normalized();
 
     double ax = vector.getX() * point.getX();
@@ -311,7 +316,9 @@ Plane Plane::createPlane(Vector3 vector, Point3 point) {
     double cz = vector.getZ() * point.getZ();
     double d = - (ax + by + cz);
 
-    return Plane(norm, d);
+    p = new Plane(norm, d);
+
+    return p;
 }
 
 double Plane::distanceToPoint(Point3 point) {
@@ -418,6 +425,12 @@ ParticleContact* BallPlaneColDetect::checkCollision(Ball *b, Plane *p) {
 
     double distance = p->distanceToPoint(b->getPosition()) - b->getRadius();
 
+    Point3 pt;
+    double r;
+
+    pt = b->getPosition();
+    r = b->getRadius();
+
     if(distance <= 0.0) {
         return new ParticleContact(b, NULL, p->getNormal() * -1.0, distance);
     } else {
@@ -471,12 +484,20 @@ bool BallHoleColDetect::checkCollision(Ball *b, Hole *h) {
 
 //-----------------------------------------------
 
-BilliardsTable::BilliardsTable(double w, double h, Plane north, Plane south, 
-    Plane east, Plane west) {
-        planes[0] = &north;
-        planes[1] = &south;
-        planes[2] = &east;
-        planes[3] = &west;
+BilliardsTable::BilliardsTable(double w, double h, Plane *north, Plane *south, 
+    Plane *east, Plane *west) {
+        /*planes[0] = Plane::createPlane(Vector3(0.0, -1.0, 0.0), 
+        Point3(0.0, 1.0, 0.0));
+        planes[1] = Plane::createPlane(Vector3(0.0, 1.0, 0.0), 
+        Point3(2.0, 0.0, 0.0));
+        planes[2] = Plane::createPlane(Vector3(-1.0, 0.0, 0.0), 
+        Point3(2.0, 1.0, 0.0));
+        planes[3] = Plane::createPlane(Vector3(1.0, 0.0, 0.0), 
+        Point3(0.0, 0.0, 0.0));*/
+        planes[0] = north;
+        planes[1] = south;
+        planes[2] = east;
+        planes[3] = west;
         this->width = w;
         this->height = h;
         this->drag = new DragForceGenerator(0.084, 0.05);
@@ -489,130 +510,73 @@ void BilliardsTable::draw() {
     }
 
     for(int i = 0; i < 16; i++) {
-        if(balls[i].isOnTable()) {
-            balls[i].draw();
+        if(balls[i]->isOnTable()) {
+            balls[i]->draw();
         }
     }
 
-    drawDirectionLine(&balls[0], LINE_SIZE);
+    drawDirectionLine(balls[0], LINE_SIZE);
 }
 
-//LOTS OF CHANGES TO DO HERE
-Point3* BilliardsTable::integrate(double ftime) {
-    /*b.clearForceAcumulator();
-    drag->updateForce(&b);
 
-    for(unsigned int i = 0; i < extraBalls.size(); i++) {
-        extraBalls[i].clearForceAcumulator();
-        drag->updateForce(&extraBalls[i]);
+Point3* BilliardsTable::integrate(double ftime) {
+    ParticleContact *cP = NULL, *cB = NULL;
+
+    // CLEARING FORCE AND UPDATING DRAG
+    for(unsigned int i = 0; i < 16; i++) {
+        balls[i]->clearForceAcumulator();
+        drag->updateForce(balls[i]);
     }
 
-    //HOLE COLLISION CHECK FOR BALLS
-    for(unsigned int i = 0; i < tableHoles.size(); i++) {
-        if(BallHoleColDetect::checkCollision(&b, &tableHoles[i])) {
-            b.setVelocity(Vector3());
-            b.setPosition(tableHoles[i].getPosition() + Vector3(0.0,0.0,2.0));
-            ballInHole = true;
-        }
-        for(unsigned int j = 0; j < extraBalls.size(); j++) {
-            if(BallHoleColDetect::checkCollision(&extraBalls[j], 
-                &tableHoles[i])) {
+    //HOLE COLLISION CHECK
+    for(unsigned int i = 0; i < 6; i++) {
+        for(unsigned int j = 0; j < 16; j++) {
+            /*if(BallHoleColDetect::checkCollision(&balls[j], 
+                &holes[i])) {
                 extraBalls.erase(extraBalls.begin() + j);
+            }*/
+        }
+    }
+
+    //WALL COLLSION CHECK
+    for (unsigned int i = 0; i < 16; i++) {
+        for(unsigned int j = 0; j < 4; j++) {
+            if(balls[i]->isOnTable()) {
+                cP = BallPlaneColDetect::checkCollision(balls[i], planes[j]);
+                if(cP != NULL) {
+                    cP->resolve();
+                }
+                cP = NULL;
             }
         }
     }
 
-    ParticleContact *cN, *cS, *cE, *cW;
-    // WALL COLLISION CHECK MAIN BALL
-    cN = BallPlaneColDetect::checkCollision(&b, &north);
-    if(cN != NULL) {
-        cN->resolve();
-    }
-
-    cS = BallPlaneColDetect::checkCollision(&b, &south);
-    if(cS != NULL) {
-        cS->resolve();
-    }
-
-    cE = BallPlaneColDetect::checkCollision(&b, &east);
-    if(cE != NULL) {
-        cE->resolve();
-    }
-
-    cW = BallPlaneColDetect::checkCollision(&b, &west);
-    if(cW != NULL) {
-        cW->resolve();
-    }
-
-    //WALL COLLSION CHECK FOR EXTRA BALLS
-    for (unsigned int i = 0; i < extraBalls.size(); i++) {
-        Ball *exBall = &extraBalls[i];
-        cN = BallPlaneColDetect::checkCollision(exBall, &north);
-        if(cN != NULL) {
-            cN->resolve();
-        }
-
-        cS = BallPlaneColDetect::checkCollision(exBall, &south);
-        if(cS != NULL) {
-            cS->resolve();
-        }
-
-        cE = BallPlaneColDetect::checkCollision(exBall, &east);
-        if(cE != NULL) {
-            cE->resolve();
-        }
-
-        cW = BallPlaneColDetect::checkCollision(exBall, &west);
-        if(cW != NULL) {
-             cW->resolve();
-        }
-    }
-
-    //BALL COLLSION CHECK FOR MAIN BALL
-    ParticleContact *cB;
-
-    for (unsigned int i = 0; i < extraBalls.size(); i++) {
-        cB = BallBallColDetect::checkCollision(&b, &extraBalls[i]);
-        if(cB != NULL) {
-            cB->resolve();
-        }
-    }
-
-    //BALL COLLISION CHECK FOR EXTRA BALLS
-    if(extraBalls.size() >= 2) {
-        for(unsigned int i = 0; i < (extraBalls.size() - 1); i++) {
-            for(unsigned int j = i + 1; j < extraBalls.size(); j++) {
-                cB = BallBallColDetect::checkCollision(&extraBalls[i], 
-                    &extraBalls[j]);
+    //BALL COLLISION CHECK
+    for(unsigned int i = 0; i < 15; i++) {
+        for(unsigned int j = i + 1; j < 16; j++) {
+            if(balls[i]->isOnTable() && balls[j]->isOnTable()) {
+                cB = BallBallColDetect::checkCollision(balls[i], balls[j]);
                 if(cB != NULL) {
+                    std::cout << "BUM\n" << std::endl;
                     cB->resolve();
                 }
+                cB = NULL;
             }
         }
     }
 
-    for(unsigned int i = 0; i < extraBalls.size(); i++) {
-        extraBalls[i].integrate(ftime);
+    for(unsigned int i = 1; i < 16; i++) {
+        balls[i]->integrate(ftime);
     }
 
-    if(ballMoving) {
-        b.integrate(ftime);
-        return NULL;
-    }
-
-    if(ballInHole) {
-        return NULL;
-    }
-
-    return new Point3(b.integrate(ftime));*/
-    return NULL;
+    return new Point3(balls[0]->integrate(ftime));
 }
 
 void BilliardsTable::hitBall(Point3 position) {
 
-    Ball b = this->balls[0];
+    Ball *b = this->balls[0];
 
-    b.setVelocity(Vector3(position - b.getPosition()) * IMPULSE_FACTOR);
+    b->setVelocity(Vector3(position - b->getPosition()) * IMPULSE_FACTOR);
 }
 
 bool BilliardsTable::resetReady() {
@@ -646,6 +610,8 @@ void BilliardsTable::initTable() {
 
     double w = this->width, iw = w / 2.0, pw = 0.0;
     double h = this->height, ph = h;
+    double bx = 2*(w/3.0), by = h/2.0, sby = h/2.0;
+    int k = 1;
 
     w = w + 1.0;
 
@@ -655,12 +621,18 @@ void BilliardsTable::initTable() {
         for(int j = 0; j < 3; j++, pw = fmod(pw + iw, w)) {
             holes[(3 * i) + j] = hgen->generate(Point3(pw, ph, 0.0));
         }
-    }
+    } 
+    balls[0] = bgen->generate(0, Point3(this->width/4.0, this->height/2.0, 0.0));
+    balls[0]->setOnTable(true);
 
     for(int i = 0; i < 5; i++) {
-        for(j = 0; j < (i+1); j++) {
-            //FILL BALLS
+        for(int j = 0; j < (i+1); j++, k++) {
+            balls[k] = bgen->generate(k, Point3(bx, by, 0.0));
+            balls[k]->setOnTable(true);
+            by -= (2*BALL_RADIUS)+0.05;
         }
+        by = sby + ((BALL_RADIUS)*(i+1)) + (0.025*(i+1));
+        bx += BALL_RADIUS*2;
     }
 }
 
@@ -677,13 +649,15 @@ void BallGenerator::setRadius(double radius) {
     this->radius = radius;
 }
 
-Ball BallGenerator::generate(int num) {
+Ball* BallGenerator::generate(int num) {
     return generate(num, Vector3());
 }
 
-Ball BallGenerator::generate(int num, Point3 position) {
-    return Ball(num, this->mass, position, Vector3(), 
+Ball* BallGenerator::generate(int num, Point3 position) {
+    Ball *b = NULL;
+    b = new Ball(num, this->mass, position, Vector3(), 
         this->radius);
+    return b;
 }
 
 //-----------------------------------------------
