@@ -9,7 +9,7 @@
 // -- EXTERNAL LIBRARIES
 //-----------------------------------------------
 
-#include <vector>
+#include <string>
 
 //-----------------------------------------------
 // -- TYPE DEFINITIONS
@@ -218,32 +218,6 @@ class BallHoleColDetect {
         static bool checkCollision(Ball *b, Hole *h);
 };
 
-class BilliardsTable {
-
-    public: 
-        BilliardsTable(double w, double h, Plane *north, Plane *south, Plane *east, 
-            Plane *west);
-
-        void draw();
-        Point3* integrate(double ftime);
-        void hitBall(Point3 vector);
-
-        bool resetReady();
-        bool mainBallMoving();
-        void resetBall();
-
-    private:
-        void initTable();
-
-        double width, height;
-        Plane *planes[4];
-        Hole *holes[6];
-        Ball *balls[16];
-
-        DragForceGenerator *drag;
-
-};
-
 class BallGenerator {
 
     public:
@@ -262,6 +236,90 @@ class HoleGenerator : BallGenerator {
         HoleGenerator(double radius);
         void setRadius(double radius);
         Hole* generate(Point3 position);
+};
+
+class BilliardsTable {
+
+    public: 
+        BilliardsTable(double w, double h);
+
+        void draw();
+        Point3* integrate(double ftime);
+        void hitBall(Point3 vector);
+        void placeObjectBalls();
+        void placeCueBall();
+
+    private:
+        void initTable();
+
+        double width, height;
+        Plane *planes[4];
+        Hole *holes[6];
+        Ball *balls[16];
+
+        DragForceGenerator *drag;
+        BallGenerator *bgen;
+        HoleGenerator *hgen;
+
+};
+
+class Player {
+
+    public:
+        Player(std::string name, BallType type);
+        std::string getName();
+        void setName(std::string name);
+        BallType getBallType();
+        void setBallType(BallType t);
+
+        virtual Vector3 getShot() = 0;
+        virtual void changeFromPrevious() = 0;
+        
+    private:
+        std::string name;
+        BallType assigType;
+
+};
+
+class MouseShot {
+
+    public:
+        MouseShot();
+        bool shotRegistered();
+        void shotRegisterer(int button, int state, int x, int y);
+        Point3* getRegisteredShot();
+
+    private:
+        bool sReg;
+        Point3 *shot;
+};
+
+class HumanPlayer : public Player {
+
+    public:
+        HumanPlayer(std::string name, BallType type);
+        Vector3 getShot();
+        void changeFromPrevious();
+    private: 
+        MouseShot listener;
+};
+
+class Game : IDrawable {
+
+    public:
+        Game(double w, double h, Player *p0, Player *p1);
+        void draw();
+        void startGame(int startPlayer);
+        int winner();
+        void nextShot();
+
+        void integrate(double ftime);
+
+    private:
+        BilliardsTable *table;
+        Player *players[2];
+        int turn;
+        bool playing;
 };
 
 #endif

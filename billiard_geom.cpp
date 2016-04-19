@@ -425,12 +425,6 @@ ParticleContact* BallPlaneColDetect::checkCollision(Ball *b, Plane *p) {
 
     double distance = p->distanceToPoint(b->getPosition()) - b->getRadius();
 
-    Point3 pt;
-    double r;
-
-    pt = b->getPosition();
-    r = b->getRadius();
-
     if(distance <= 0.0) {
         return new ParticleContact(b, NULL, p->getNormal() * -1.0, distance);
     } else {
@@ -484,22 +478,17 @@ bool BallHoleColDetect::checkCollision(Ball *b, Hole *h) {
 
 //-----------------------------------------------
 
-BilliardsTable::BilliardsTable(double w, double h, Plane *north, Plane *south, 
-    Plane *east, Plane *west) {
-        /*planes[0] = Plane::createPlane(Vector3(0.0, -1.0, 0.0), 
+BilliardsTable::BilliardsTable(double w, double h) : width(w), height(h) {
+        this->bgen = new BallGenerator(BALL_MASS, BALL_RADIUS);
+        this->hgen = new HoleGenerator(HOLE_RADIUS);
+        this->planes[0] = Plane::createPlane(Vector3(0.0, -1.0, 0.0), 
         Point3(0.0, 1.0, 0.0));
-        planes[1] = Plane::createPlane(Vector3(0.0, 1.0, 0.0), 
+        this->planes[1] = Plane::createPlane(Vector3(0.0, 1.0, 0.0), 
         Point3(2.0, 0.0, 0.0));
-        planes[2] = Plane::createPlane(Vector3(-1.0, 0.0, 0.0), 
+        this->planes[2] = Plane::createPlane(Vector3(-1.0, 0.0, 0.0), 
         Point3(2.0, 1.0, 0.0));
-        planes[3] = Plane::createPlane(Vector3(1.0, 0.0, 0.0), 
-        Point3(0.0, 0.0, 0.0));*/
-        planes[0] = north;
-        planes[1] = south;
-        planes[2] = east;
-        planes[3] = west;
-        this->width = w;
-        this->height = h;
+        this->planes[3] = Plane::createPlane(Vector3(1.0, 0.0, 0.0), 
+        Point3(0.0, 0.0, 0.0));
         this->drag = new DragForceGenerator(0.084, 0.05);
         initTable();
     }
@@ -509,13 +498,16 @@ void BilliardsTable::draw() {
         holes[i]->draw();
     }
 
+
     for(int i = 0; i < 16; i++) {
-        if(balls[i]->isOnTable()) {
+        if(balls[i] != NULL && balls[i]->isOnTable()) {
             balls[i]->draw();
         }
     }
 
-    drawDirectionLine(balls[0], LINE_SIZE);
+    if(balls[0] != NULL) {
+        drawDirectionLine(balls[0], LINE_SIZE);
+    }
 }
 
 
@@ -531,10 +523,9 @@ Point3* BilliardsTable::integrate(double ftime) {
     //HOLE COLLISION CHECK
     for(unsigned int i = 0; i < 6; i++) {
         for(unsigned int j = 0; j < 16; j++) {
-            /*if(BallHoleColDetect::checkCollision(&balls[j], 
-                &holes[i])) {
-                extraBalls.erase(extraBalls.begin() + j);
-            }*/
+            if(BallHoleColDetect::checkCollision(balls[j], holes[i])) {
+                balls[j]->setOnTable(false);
+            }
         }
     }
 
@@ -557,7 +548,6 @@ Point3* BilliardsTable::integrate(double ftime) {
             if(balls[i]->isOnTable() && balls[j]->isOnTable()) {
                 cB = BallBallColDetect::checkCollision(balls[i], balls[j]);
                 if(cB != NULL) {
-                    std::cout << "BUM\n" << std::endl;
                     cB->resolve();
                 }
                 cB = NULL;
@@ -579,60 +569,45 @@ void BilliardsTable::hitBall(Point3 position) {
     b->setVelocity(Vector3(position - b->getPosition()) * IMPULSE_FACTOR);
 }
 
-bool BilliardsTable::resetReady() {
-    /*for(unsigned int i = 0; i < extraBalls.size(); i++) {
-        Vector3 v = extraBalls[i].getVelocity();
-        if(v.getX() != 0.0 || v.getY() != 0.0) {
-            return false;
-        }
-    }*/
-
-    return true;
-}
-
-bool BilliardsTable::mainBallMoving() {
-    /*Vector3 bv = b.getVelocity();
-    if(bv.getX() == 0.0 && bv.getY() == 0.0) {
-        return false;
-    }*/
-
-    return true;
-}
-
-void BilliardsTable::resetBall() {
-    /*b.setPosition(Point3(0.5,0.5,0.0));
-    ballInHole = false;*/
-}
-
-void BilliardsTable::initTable() {
-    BallGenerator *bgen = new BallGenerator(BALL_MASS, BALL_RADIUS);
-    HoleGenerator *hgen = new HoleGenerator(HOLE_RADIUS);
-
-    double w = this->width, iw = w / 2.0, pw = 0.0;
-    double h = this->height, ph = h;
+void BilliardsTable::placeObjectBalls() {
+    double w = this->width;
+    double h = this->height;
     double bx = 2*(w/3.0), by = h/2.0, sby = h/2.0;
-    int k = 1;
-
-    w = w + 1.0;
-
-    std::cout << w << " -- " << iw << std::endl;
-
-    for(int i = 0; i < 2; i++, ph = (ph - h)) {
-        for(int j = 0; j < 3; j++, pw = fmod(pw + iw, w)) {
-            holes[(3 * i) + j] = hgen->generate(Point3(pw, ph, 0.0));
-        }
-    } 
-    balls[0] = bgen->generate(0, Point3(this->width/4.0, this->height/2.0, 0.0));
-    balls[0]->setOnTable(true);
+    double sep = 0.01, sep2 = sep / 2.0;
+    int k = 1, c = 0;
 
     for(int i = 0; i < 5; i++) {
         for(int j = 0; j < (i+1); j++, k++) {
-            balls[k] = bgen->generate(k, Point3(bx, by, 0.0));
+            if(k==5) {
+                balls[k] = this->bgen->generate(8, Point3(bx, by, 0.0));
+            } else {
+                if(k%2 == 0) { c = 1;} else {c = 9;}
+                balls[k] = this->bgen->generate(c, Point3(bx, by, 0.0));
+            }
             balls[k]->setOnTable(true);
-            by -= (2*BALL_RADIUS)+0.05;
+            by -= (2*BALL_RADIUS)+sep;
         }
-        by = sby + ((BALL_RADIUS)*(i+1)) + (0.025*(i+1));
+        by = sby + ((BALL_RADIUS)*(i+1)) + (sep2*(i+1));
         bx += BALL_RADIUS*2;
+    }
+}
+
+void BilliardsTable::placeCueBall() {
+    balls[0] = this->bgen->generate(0, 
+        Point3(this->width/4.0, this->height/2.0, 0.0));
+    balls[0]->setOnTable(true);
+}
+
+void BilliardsTable::initTable() {
+    double w = this->width, iw = w / 2.0, pw = 0.0;
+    double h = this->height, ph = h;
+
+    w = w + 1.0;
+
+    for(int i = 0; i < 2; i++, ph = (ph - h)) {
+        for(int j = 0; j < 3; j++, pw = fmod(pw + iw, w)) {
+            holes[(3 * i) + j] = this->hgen->generate(Point3(pw, ph, 0.0));
+        }
     }
 }
 
@@ -671,6 +646,99 @@ void HoleGenerator::setRadius(double radius) {
 
 Hole* HoleGenerator::generate(Point3 position) {
     return new Hole(position, this->radius);
+}
+
+//-----------------------------------------------
+
+Player::Player(std::string name, BallType type) : name(name), 
+assigType(type) {}
+
+std::string Player::getName() {
+    return this->name;
+}
+
+void Player::setName(std::string name) {
+    this->name = name;
+}
+
+BallType Player::getBallType() {
+    return this->assigType;
+}
+
+void Player::setBallType(BallType type) {
+    this->assigType = type;
+}
+
+//-----------------------------------------------
+
+HumanPlayer::HumanPlayer(std::string name, BallType type) : 
+    Player(name, type) {}
+
+Vector3 HumanPlayer::getShot() {
+    while(!this->listener.shotRegistered());
+
+    return Vector3(*this->listener.getRegisteredShot());
+}
+
+void HumanPlayer::changeFromPrevious() {
+    // FICAR FORA DE CLASSE
+    glutMouseFunc((void(*)(void*,int,int,int,int))&this->listener.shotRegisterer);
+}
+
+//-----------------------------------------------
+
+MouseShot::MouseShot() : sReg(false), shot(NULL) {}
+
+bool MouseShot::shotRegistered() {
+    return sReg;
+}
+
+void MouseShot::shotRegisterer(int button, int state, int x, int y) {
+    std::cout << "Called" << std::endl;
+    double px = (double) x / 320.0;
+    double py = 1 - ((double) y / 320.0);
+
+    shot = new Point3(px, py, 0.0);
+
+    sReg = true;
+}
+
+Point3* MouseShot::getRegisteredShot() {
+    return this->shot;
+}
+
+//-----------------------------------------------
+
+Game::Game(double w, double h, Player *p0, Player *p1) {
+    this->table = new BilliardsTable(w, h);
+    this->players[0] = p0;
+    this->players[1] = p1;
+    this->turn = -1;
+    this->playing = false;
+}
+
+void Game::draw() {
+    table->draw();
+}
+
+void Game::startGame(int startPlayer) {
+    this->turn = startPlayer;
+    table->placeObjectBalls();
+    table->placeCueBall();
+}
+
+int Game::winner() {
+    return -1; // TODO
+}
+
+void Game::nextShot() {
+    Vector3 shot = players[turn]->getShot();
+}
+
+void Game::integrate(double ftime) {
+    if(this->playing) {
+        table->integrate(ftime);
+    }
 }
 
 //-----------------------------------------------

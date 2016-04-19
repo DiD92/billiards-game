@@ -9,7 +9,7 @@ CC=g++
 
 
 billiard: $(SRC) $(ESRC) $(AUX)
-	@$(CC) -DNO_TEST $(LIBS) $(SRC) $(ESRC) -o $(DST)
+	@$(CC) -DNO_TEST $(LIBS) $(OPTS) $(SRC) $(ESRC) -o $(DST)
 	@echo Compilation complete!
 
 test: $(ESRC) $(AUX)

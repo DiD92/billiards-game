@@ -45,6 +45,8 @@ void idle();
 extern bool ballInHole;
 extern bool ballMoving;
 
+Game *game;
+
 BilliardsTable *table;
 
 float worldx = 2.0, worldy = 1.0;
@@ -72,15 +74,10 @@ int main(int argc,char *argv[]) {
 //-----------------------------------------------
 
 void initContext() {
-    Plane *north = Plane::createPlane(Vector3(0.0, -1.0, 0.0), 
-        Point3(0.0, 1.0, 0.0));
-    Plane *south = Plane::createPlane(Vector3(0.0, 1.0, 0.0), 
-        Point3(2.0, 0.0, 0.0));
-    Plane *east = Plane::createPlane(Vector3(-1.0, 0.0, 0.0), 
-        Point3(2.0, 1.0, 0.0));
-    Plane *west = Plane::createPlane(Vector3(1.0, 0.0, 0.0), 
-        Point3(0.0, 0.0, 0.0));
-    table = new BilliardsTable(worldx, worldy, north, south, east, west);
+    //table = new BilliardsTable(worldx, worldy);
+    game = new Game(worldx, worldy, new HumanPlayer("P1", SOLID), 
+        new HumanPlayer("P2", STRIPED));
+    game->startGame(0);
 }
 
 void initGraphicContext(int argc, char **argv) {
@@ -103,7 +100,7 @@ void initGraphicContext(int argc, char **argv) {
 
     glutDisplayFunc(display);
     glutKeyboardFunc(keyboard);
-    glutMouseFunc(mouse);
+    //glutMouseFunc(mouse);
     glutPassiveMotionFunc(passiveMouse);
     glutIdleFunc(idle);
     glutCloseFunc(cleanContext);
@@ -112,7 +109,7 @@ void initGraphicContext(int argc, char **argv) {
 }
 
 void cleanContext() {
-    delete table;
+    delete game;
 }
 
 double toSecondsDelta(long deltamilis) {
@@ -121,7 +118,7 @@ double toSecondsDelta(long deltamilis) {
 
 void display() {
     glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT); // Clear
-    table->draw();
+    game->draw();
 
     drawCircle(mousepx, mousepy, 0.01, 20, RGBColor(255, 255, 0));
 
@@ -133,17 +130,14 @@ void keyboard(uchar c, int x, int y) {
 }
 
 void mouse(int button, int state, int x, int y) {
+        std::cout << "Called" << std::endl;
+    double px = (double) x / 320.0;
+    double py = 1 - ((double) y / 320.0);
 
-    /*if(!ballInHole && !ballMoving) {
-        double px = (double) x / 320.0;
-        double py = 1 - ((double) y / 320.0);
+    Point3 p = Point3(px, py, 0.0);
+    //table->hitBall(p);
 
-        Point3 p = Point3(px, py, 0.0);
-        table->hitBall(p);
-        ballMoving = true;
-    }
-
-    glutPostRedisplay();*/
+    glutPostRedisplay();
 }
 
 void passiveMouse(int x, int y) {
@@ -156,15 +150,7 @@ void idle() {
     deltaTime = elapsedTime - lastElapsed;
     deltaSeconds = toSecondsDelta(deltaTime);
 
-    if(table->integrate(deltaSeconds) == NULL) {
-        /*if(table->resetReady()) {
-            if(ballInHole) {
-                table->resetBall();
-            } else if(!table->mainBallMoving()) {
-                ballMoving = false;
-            }
-        }*/
-    }
+    game->integrate(deltaSeconds);
 
     lastElapsed = elapsedTime;
 
