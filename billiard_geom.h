@@ -30,6 +30,12 @@ class IDrawable {
         virtual void draw() = 0;
 };
 
+class INotifiable {
+
+    public:
+        virtual void notify(BallType type) = 0;
+};
+
 class RGBColor {
 
     public:
@@ -60,6 +66,8 @@ class Point3 {
         void setY(double y);
         double getZ() const;
         void setZ(double z);
+
+        bool equals(const Point3 &p);
 
         Point3 operator + (const Point3 &point);
         Point3 operator - (const Point3 &point);
@@ -122,6 +130,8 @@ class Ball : public Particle, public IDrawable {
         void setRadius(double radius);
         void setOnTable(bool onTable);
         bool isOnTable();
+
+        BallType getType();
 
         void draw();
 
@@ -241,13 +251,15 @@ class HoleGenerator : BallGenerator {
 class BilliardsTable {
 
     public: 
-        BilliardsTable(double w, double h);
+        BilliardsTable(double w, double h, INotifiable *callback);
 
         void draw();
         Point3* integrate(double ftime);
         void hitBall(Point3 vector);
         void placeObjectBalls();
         void placeCueBall();
+
+        bool shotReady();
 
     private:
         void initTable();
@@ -256,6 +268,9 @@ class BilliardsTable {
         Plane *planes[4];
         Hole *holes[6];
         Ball *balls[16];
+
+        // Callback object
+        INotifiable *callback;
 
         DragForceGenerator *drag;
         BallGenerator *bgen;
@@ -272,54 +287,63 @@ class Player {
         BallType getBallType();
         void setBallType(BallType t);
 
-        virtual Vector3 getShot() = 0;
+        virtual Point3* getShot() = 0;
         virtual void changeFromPrevious() = 0;
-        
+        virtual void receiveInput(Point3 *p);
+
     private:
         std::string name;
         BallType assigType;
-
 };
 
-class MouseShot {
-
-    public:
-        MouseShot();
-        bool shotRegistered();
-        void shotRegisterer(int button, int state, int x, int y);
-        Point3* getRegisteredShot();
-
-    private:
-        bool sReg;
-        Point3 *shot;
-};
+void playerMouse(int button, int state, int x, int y);
 
 class HumanPlayer : public Player {
 
     public:
         HumanPlayer(std::string name, BallType type);
-        Vector3 getShot();
+        Point3* getShot();
         void changeFromPrevious();
-    private: 
-        MouseShot listener;
+        void receiveInput(Point3 *p);
+
+    private:
+        bool awaitingInput;
+        bool inputRecv;
+        Point3 *shot;
 };
 
-class Game : IDrawable {
+class Game : IDrawable, INotifiable {
 
     public:
         Game(double w, double h, Player *p0, Player *p1);
         void draw();
         void startGame(int startPlayer);
         int winner();
+        bool gameEnded();
         void nextShot();
+        void processMouse(int x, int y);
 
         void integrate(double ftime);
+
+        void notify(BallType type);
 
     private:
         BilliardsTable *table;
         Player *players[2];
         int turn;
         bool playing;
+
+        int score[2];
+
+        int p1s, p2s;
+
+        int win;
+
+        int pocketedBalls;
+
+        bool playerShot;
+
+        bool replaceCueBall;
 };
 
 #endif

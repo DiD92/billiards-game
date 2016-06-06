@@ -100,7 +100,7 @@ void initGraphicContext(int argc, char **argv) {
 
     glutDisplayFunc(display);
     glutKeyboardFunc(keyboard);
-    //glutMouseFunc(mouse);
+    glutMouseFunc(mouse);
     glutPassiveMotionFunc(passiveMouse);
     glutIdleFunc(idle);
     glutCloseFunc(cleanContext);
@@ -130,12 +130,9 @@ void keyboard(uchar c, int x, int y) {
 }
 
 void mouse(int button, int state, int x, int y) {
-        std::cout << "Called" << std::endl;
-    double px = (double) x / 320.0;
-    double py = 1 - ((double) y / 320.0);
-
-    Point3 p = Point3(px, py, 0.0);
-    //table->hitBall(p);
+    if(game != NULL) {
+        game->processMouse(x, y);
+    }
 
     glutPostRedisplay();
 }
@@ -149,6 +146,10 @@ void idle() {
     elapsedTime = glutGet(GLUT_ELAPSED_TIME);
     deltaTime = elapsedTime - lastElapsed;
     deltaSeconds = toSecondsDelta(deltaTime);
+
+    if(!game->gameEnded()) {
+        game->nextShot();
+    }    
 
     game->integrate(deltaSeconds);
 

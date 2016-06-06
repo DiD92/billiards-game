@@ -87,6 +87,10 @@ double Point3::getZ() const { return this->z; }
 
 void Point3::setZ(double z) { this->z = z; }
 
+bool Point3::equals(const Point3 &p) {
+    return ((x == p.x) && (y == p.y) && (z == p.z));
+}
+
 Point3 Point3::operator + (const Point3 &point) {
     return Point3(getX() + point.getX(), 
         getY() + point.getY(),
@@ -224,6 +228,10 @@ void Ball::setOnTable(bool onTable) {
 
 bool Ball::isOnTable() {
     return (this->onTable);
+}
+
+BallType Ball::getType() {
+    return this->type;
 }
 
 void Ball::draw() {
@@ -478,7 +486,8 @@ bool BallHoleColDetect::checkCollision(Ball *b, Hole *h) {
 
 //-----------------------------------------------
 
-BilliardsTable::BilliardsTable(double w, double h) : width(w), height(h) {
+BilliardsTable::BilliardsTable(double w, double h, INotifiable *callback) : 
+    width(w), height(h), callback(callback) {
         this->bgen = new BallGenerator(BALL_MASS, BALL_RADIUS);
         this->hgen = new HoleGenerator(HOLE_RADIUS);
         this->planes[0] = Plane::createPlane(Vector3(0.0, -1.0, 0.0), 
@@ -523,8 +532,11 @@ Point3* BilliardsTable::integrate(double ftime) {
     //HOLE COLLISION CHECK
     for(unsigned int i = 0; i < 6; i++) {
         for(unsigned int j = 0; j < 16; j++) {
-            if(BallHoleColDetect::checkCollision(balls[j], holes[i])) {
-                balls[j]->setOnTable(false);
+            if(balls[j]->isOnTable()) {
+                if(BallHoleColDetect::checkCollision(balls[j], holes[i])) {
+                    balls[j]->setOnTable(false);
+                    callback->notify(balls[j]->getType());
+                }
             }
         }
     }
@@ -556,7 +568,9 @@ Point3* BilliardsTable::integrate(double ftime) {
     }
 
     for(unsigned int i = 1; i < 16; i++) {
-        balls[i]->integrate(ftime);
+        if(balls[i]->isOnTable()) {
+            balls[i]->integrate(ftime);
+        }
     }
 
     return new Point3(balls[0]->integrate(ftime));
@@ -593,9 +607,34 @@ void BilliardsTable::placeObjectBalls() {
 }
 
 void BilliardsTable::placeCueBall() {
-    balls[0] = this->bgen->generate(0, 
-        Point3(this->width/4.0, this->height/2.0, 0.0));
-    balls[0]->setOnTable(true);
+    if(balls[0] == NULL) {
+        balls[0] = this->bgen->generate(0, 
+            Point3(this->width/4.0, this->height/2.0, 0.0));
+        balls[0]->setOnTable(true);
+    } else {
+        balls[0]->setPosition(Point3(this->width/4.0, this->height/2.0, 0.0));
+        balls[0]->setVelocity(Vector3());
+        balls[0]->setOnTable(true);
+    }
+}
+
+bool BilliardsTable::shotReady() {
+    bool sReady = true;
+
+    Vector3 zero;
+
+    for(int i = 0; i < 16; i++) {
+        if(!balls[i]->isOnTable()) {
+            continue;
+        }
+
+        if(!zero.equals(balls[i]->getVelocity())) {
+            sReady = false;
+            break;
+        }
+    }
+
+    return sReady;
 }
 
 void BilliardsTable::initTable() {
@@ -669,52 +708,64 @@ void Player::setBallType(BallType type) {
     this->assigType = type;
 }
 
+void Player::receiveInput(Point3 *p) {
+    // PASS
+}
+
 //-----------------------------------------------
 
 HumanPlayer::HumanPlayer(std::string name, BallType type) : 
-    Player(name, type) {}
+    Player(name, type), awaitingInput(false), inputRecv(false), shot(NULL) {}
 
-Vector3 HumanPlayer::getShot() {
-    while(!this->listener.shotRegistered());
+Point3* HumanPlayer::getShot() {
+    awaitingInput = true;
+    if(!inputRecv) {
+        return NULL;
+    } else {
+        awaitingInput = false;
+        inputRecv = false;
 
-    return Vector3(*this->listener.getRegisteredShot());
+        return shot;
+    }
 }
 
 void HumanPlayer::changeFromPrevious() {
-    // FICAR FORA DE CLASSE
-    glutMouseFunc((void(*)(void*,int,int,int,int))&this->listener.shotRegisterer);
+    awaitingInput = false;
+    inputRecv = false;
+    shot = NULL;
 }
 
-//-----------------------------------------------
-
-MouseShot::MouseShot() : sReg(false), shot(NULL) {}
-
-bool MouseShot::shotRegistered() {
-    return sReg;
-}
-
-void MouseShot::shotRegisterer(int button, int state, int x, int y) {
-    std::cout << "Called" << std::endl;
-    double px = (double) x / 320.0;
-    double py = 1 - ((double) y / 320.0);
-
-    shot = new Point3(px, py, 0.0);
-
-    sReg = true;
-}
-
-Point3* MouseShot::getRegisteredShot() {
-    return this->shot;
+void HumanPlayer::receiveInput(Point3 *p) {
+    if(awaitingInput) {
+        shot = p;
+        inputRecv = true;
+    } else {
+        shot = NULL;
+    }
 }
 
 //-----------------------------------------------
 
 Game::Game(double w, double h, Player *p0, Player *p1) {
-    this->table = new BilliardsTable(w, h);
+    this->table = new BilliardsTable(w, h, this);
     this->players[0] = p0;
     this->players[1] = p1;
     this->turn = -1;
     this->playing = false;
+    this->win = 0;
+    this->score[0] = 1;
+    this->score[1] = 1;
+    this->pocketedBalls = 0;
+    this->playerShot = false;
+    this->replaceCueBall = false;
+
+    if(SOLID == p0->getBallType()) {
+        p1s = 0;
+        p2s = 1;
+    } else {
+        p1s = 1;
+        p2s = 0;
+    }
 }
 
 void Game::draw() {
@@ -725,19 +776,95 @@ void Game::startGame(int startPlayer) {
     this->turn = startPlayer;
     table->placeObjectBalls();
     table->placeCueBall();
+    this->players[this->turn]->changeFromPrevious();
+    this->playing = true;
+
+    std::cout << "GAME START WITH P" << (turn+1) << std::endl;
 }
 
 int Game::winner() {
-    return -1; // TODO
+    return win;
+}
+
+bool Game::gameEnded() {
+    return (win != 0);
 }
 
 void Game::nextShot() {
-    Vector3 shot = players[turn]->getShot();
+    if(table->shotReady() && this->playing) {
+        if(replaceCueBall) {
+            table->placeCueBall();
+            replaceCueBall = false;
+        }
+
+        if(playerShot && pocketedBalls == 0) { // Player already shot this turn
+            turn = (turn+1) % 2;
+            std::cout << "CHANGING TURN TO P" << (turn+1) << std::endl;
+            playerShot = false;
+        }
+        Point3 *shot = NULL;
+        shot = players[turn]->getShot();
+        if(shot != NULL) {
+            table->hitBall(*shot);
+            playerShot = true;
+        }
+    }
+}
+
+void Game::processMouse(int x, int y) {
+    Point3 *shot;
+    double px = (double) x / 320.0;
+    double py = 1 - ((double) y / 320.0);
+
+    shot = new Point3(px, py, 0.0);
+
+    players[this->turn]->receiveInput(shot);
 }
 
 void Game::integrate(double ftime) {
     if(this->playing) {
         table->integrate(ftime);
+    }
+}
+
+void Game::notify(BallType type) {
+    switch(type) {
+        case CUE:
+            std::cout << "CUE BALL IN - " << std::endl;
+            turn = (turn+1) % 2;
+            replaceCueBall = true;
+            playerShot = false;
+            std::cout << "TURN CHANGED TO P" << (turn+1) << std::endl;
+            break;
+        case SOLID:
+            std::cout << "SOLID BALL IN - " << score[0] << " - " 
+                << score[1] << std::endl; 
+            score[p1s] -= 1;
+            std::cout << "NEW GAME SCORE - " << score[0] << " - " 
+                << score[1] << std::endl; 
+            break;
+        case EIGHT:
+            std::cout << "EIGHT BALL IN - " << score[0] << " - " 
+                << score[1] << std::endl;
+            if(score[turn] > 0) {
+                win = (turn+1) % 2;
+                std::cout << "GAME WINNER IS P" << (winner()+1) << std::endl;
+                playing = false;
+            } else {
+                win = turn;
+                std::cout << "GAME WINNER IS P" << (winner()+1) << std::endl;
+                playing = false;
+            }
+            break;
+        case STRIPED:
+            std::cout << "STRIPED BALL IN - " << score[0] << " - " 
+                << score[1] << std::endl;  
+            score[p2s] -= 1;
+            std::cout << "NEW GAME SCORE - " << score[0] << " - " 
+                << score[1] << std::endl;
+            break;
+        default:
+            break;
     }
 }
 
