@@ -4,6 +4,7 @@
 
 #include <GL/glut.h>
 #include <cmath>
+#include <cstdlib>
 #include <iostream>
 #include <limits>
 
@@ -40,6 +41,7 @@
 
 void drawCircle(float, float, float, int, RGBColor);
 void drawDirectionLine(Ball*, float);
+float frand(float, float);
 
 //-----------------------------------------------
 // -- AUXILIARY VARIABLES
@@ -86,6 +88,10 @@ void Point3::setY(double y) { this->y = y; }
 double Point3::getZ() const { return this->z; }
 
 void Point3::setZ(double z) { this->z = z; }
+
+double Point3::distanceTo(const Point3 &p) {
+    return Vector3(p.getX() - x, p.getY() - y, 0.0f).modulus();
+}
 
 bool Point3::equals(const Point3 &p) {
     return ((x == p.x) && (y == p.y) && (z == p.z));
@@ -212,7 +218,7 @@ Ball::Ball(int number, double mass, Point3 position, Vector3 velocity,
     double radius) : Particle(mass, position, velocity), 
     number(number), radius(radius) {
         setBallType();
-    }
+}
 
 Ball::~Ball() {
     //CODE HERE
@@ -637,6 +643,26 @@ bool BilliardsTable::shotReady() {
     return sReady;
 }
 
+Ball* BilliardsTable::getMap() {
+    Ball* tableMap = (Ball*) malloc(sizeof(Ball) * 16);
+
+    for(int i = 0; i < 16; i++) {
+        tableMap[i] = *balls[i];
+    }
+
+    return tableMap;
+}
+
+Hole* BilliardsTable::getTargets() {
+    Hole* tableTargets = (Hole*) malloc(sizeof(Hole) * 6);
+
+    for(int i = 0; i < 6; i++) {
+        tableTargets[i] = *holes[i];
+    }
+
+    return tableTargets;
+}
+
 void BilliardsTable::initTable() {
     double w = this->width, iw = w / 2.0, pw = 0.0;
     double h = this->height, ph = h;
@@ -689,6 +715,137 @@ Hole* HoleGenerator::generate(Point3 position) {
 
 //-----------------------------------------------
 
+Vector3 AI::randomPlanarVector() {
+    float x,y;
+
+    x = frand(-10.0f, 10.0f);
+    y = frand(-10.0f, 10.0f);
+
+    return Vector3(x, y, 0.0f).normalized();
+}
+
+Vector3 AI::randomPlanarVector(float maxMod) {
+    float rMod = frand(1.0f, maxMod);
+    
+    return randomPlanarVector() * rMod;
+}
+
+Vector3 AI::computeShot(BilliardsTable *bt, BallType target) {
+    float randMaxMod = frand(1.0f, 5.0f);
+
+    std::cout << "[AI] IMPROVED RANDOM SHOT ALGORITHM" << std::endl;
+
+    if(target == CUE) {
+        return bt->getMap()[1].getPosition();
+    } else if(target == EIGHT) {
+        std::cout << "[AI] CALCULATING OPTIMAL HOLE FOR BALL EIGHT..." 
+        << std::endl;
+
+        Ball *balls = bt->getMap();
+        Ball eight = balls[5], cue = balls[0];
+
+        double bRad = balls[0].getRadius() / 2.0;
+
+        Vector3 vectors[6];
+
+        Vector3 cueToEight = Vector3(eight.getPosition() - 
+            cue.getPosition()).normalized();
+
+        int tHole = -1;
+
+        double vDiff = 999.0, cDiff;
+
+        Hole *targets = bt->getTargets();
+        for(int i = 0; i < 6; i++) {
+            vectors[i] = Vector3(targets[i].getPosition() - 
+                eight.getPosition()).normalized();
+            cDiff = Vector3(cueToEight - vectors[i]).modulus();
+            if(cDiff < vDiff) {
+                vDiff = cDiff;
+                tHole = i;
+            }
+        }
+
+        double angleEightToHole = cueToEight * vectors[tHole];
+        double angleCueToHole = Vector3(cue.getPosition() - 
+            targets[tHole].getPosition()).normalized() * vectors[tHole];
+
+        double angleDiff = angleCueToHole - angleEightToHole;
+
+        Point3 cuePos = cue.getPosition(), eiPos = eight.getPosition();
+
+        if(cuePos.getX() >= eiPos.getX()) { // CUE BALL IS AT LEFT OF EIGHT
+            if(cuePos.getY() >= eiPos.getY()) { // CUE BALL IS ABOVE BALL EIGHT
+                return Point3(eiPos.getX(), eiPos.getY() + 
+                    (bRad * fabs(angleDiff)), 0.0f);
+            } else { // CUE BALL IS BELOW BALL EIGHT
+                return Point3(eiPos.getX(), eiPos.getY() - 
+                    (bRad * fabs(angleDiff)), 0.0f);
+            }
+        } else { // CUE BALL IS AT RIGHT OF EIGHT
+            if(cuePos.getY() >= eiPos.getY()) { // CUE BALL IS ABOVE BALL EIGHT
+                return Point3(eiPos.getX(), eiPos.getY() + 
+                    (bRad * fabs(angleDiff)), 0.0f);
+            } else { // CUE BALL IS BELOW BALL EIGHT
+                return Point3(eiPos.getX(), eiPos.getY() - 
+                    (bRad * fabs(angleDiff)), 0.0f);
+            }
+        }
+
+    } else {
+        return randomPlanarVector(randMaxMod);
+    }
+}
+
+//-----------------------------------------------
+
+Vector3 DirectShotAI::computeShot(BilliardsTable *bt, BallType target) {
+    Ball *balls = bt->getMap();
+    int bPos = -1;
+    double distance = 9999.0, nextDistance;
+
+    std::cout << "[AI] DIRECT SHOT ALGORITHM" << std::endl;
+
+    if(target == SOLID || target == STRIPED) {
+        std::cout << "[AI] SEARCHING CLOSE TARGET" << std::endl;
+        Point3 cuePos = balls[0].getPosition();
+        for(int i = 1; i < 16; i++) {
+            if(balls[i].isOnTable() && (balls[i].getType() == target)) {
+                nextDistance = cuePos.distanceTo(balls[i].getPosition());
+                if(nextDistance < distance) {
+                    distance = nextDistance;
+                    bPos = i;
+                }
+            }
+        }
+
+        Point3 ballPos = balls[bPos].getPosition();
+
+        return balls[bPos].getPosition();
+
+    } else if(target == UNASSIGNED) {
+        std::cout << "[AI] SEARCHING CLOSE BALL" << std::endl;
+        Point3 cuePos = balls[0].getPosition();
+        for(int i = 1; i < 16; i++) {
+            if(balls[i].isOnTable()) {
+                nextDistance = cuePos.distanceTo(balls[i].getPosition());
+                if(nextDistance < distance) {
+                    distance = nextDistance;
+                    bPos = i;
+                }
+            }
+        }
+
+        return balls[bPos].getPosition();
+
+    } else {
+        std::cout << "[AI] USING RANDOM SHOT" << std::endl;
+        return AI::computeShot(bt, target);
+    }
+}
+
+//-----------------------------------------------
+
 Player::Player(std::string name, BallType type) : name(name), 
 assigType(type) {}
 
@@ -708,9 +865,15 @@ void Player::setBallType(BallType type) {
     this->assigType = type;
 }
 
-void Player::receiveInput(Point3 *p) {
-    // PASS
+BilliardsTable* Player::getTable() {
+    return this->bt;
 }
+
+void Player::setTable(BilliardsTable *bt) {
+    this->bt = bt;
+}
+
+void Player::receiveInput(Point3 *p) {}
 
 //-----------------------------------------------
 
@@ -737,6 +900,7 @@ void HumanPlayer::changeFromPrevious() {
 
 void HumanPlayer::receiveInput(Point3 *p) {
     if(awaitingInput) {
+        std::cout << "[HUMAN] SHOT RECEIVED" << std::endl;
         shot = p;
         inputRecv = true;
     } else {
@@ -746,26 +910,42 @@ void HumanPlayer::receiveInput(Point3 *p) {
 
 //-----------------------------------------------
 
+BotPlayer::BotPlayer(std::string name, BallType type, AI *botAI) :
+    Player(name, type), botAI(botAI) {}
+
+Point3* BotPlayer::getShot() {
+
+    BilliardsTable *table;
+
+    table = getTable();
+
+    if(table != NULL) {
+        std::cout << "[AI] COMPUTING SHOT..." << std::endl;
+        Vector3 shot = this->botAI->computeShot(table, getBallType());
+        Vector3 errorShot = Vector3(frand(-0.1f, 0.1f), frand(-0.1f, 0.1f), 
+            0.0f);
+
+        return new Point3(shot + errorShot);
+    }
+
+    return new Point3();
+
+}
+
+void BotPlayer::changeFromPrevious() {
+
+}
+
+void BotPlayer::receiveInput(Point3 *p) {}
+
+//-----------------------------------------------
+
 Game::Game(double w, double h, Player *p0, Player *p1) {
     this->table = new BilliardsTable(w, h, this);
     this->players[0] = p0;
     this->players[1] = p1;
     this->turn = -1;
     this->playing = false;
-    this->win = 0;
-    this->score[0] = 1;
-    this->score[1] = 1;
-    this->pocketedBalls = 0;
-    this->playerShot = false;
-    this->replaceCueBall = false;
-
-    if(SOLID == p0->getBallType()) {
-        p1s = 0;
-        p2s = 1;
-    } else {
-        p1s = 1;
-        p2s = 0;
-    }
 }
 
 void Game::draw() {
@@ -777,9 +957,22 @@ void Game::startGame(int startPlayer) {
     table->placeObjectBalls();
     table->placeCueBall();
     this->players[this->turn]->changeFromPrevious();
+
+    this->win = 0;
+    this->score[0] = 1;
+    this->score[1] = 1;
+    this->pocketedBalls = 0;
+    this->playerShot = false;
+    this->replaceCueBall = false;
+    this->p1s = -1;
+    this->p2s = -1;
+
+    this->players[0]->setTable(table);
+    this->players[1]->setTable(table);
+
     this->playing = true;
 
-    std::cout << "GAME START WITH P" << (turn+1) << std::endl;
+    std::cout << "[GAME] START WITH P" << (turn+1) << std::endl;
 }
 
 int Game::winner() {
@@ -799,14 +992,19 @@ void Game::nextShot() {
 
         if(playerShot && pocketedBalls == 0) { // Player already shot this turn
             turn = (turn+1) % 2;
-            std::cout << "CHANGING TURN TO P" << (turn+1) << std::endl;
+            std::cout << "[GAME] CHANGING TURN TO P" << (turn+1) << std::endl;
             playerShot = false;
+            if(players[turn]->getBallType() == CUE) {
+                players[0]->setBallType(UNASSIGNED);
+                players[1]->setBallType(UNASSIGNED);
+            }
         }
         Point3 *shot = NULL;
         shot = players[turn]->getShot();
         if(shot != NULL) {
             table->hitBall(*shot);
             playerShot = true;
+            pocketedBalls = 0;
         }
     }
 }
@@ -829,39 +1027,85 @@ void Game::integrate(double ftime) {
 
 void Game::notify(BallType type) {
     switch(type) {
-        case CUE:
-            std::cout << "CUE BALL IN - " << std::endl;
+        case CUE: // FORCE TURN CHANGE
+            std::cout << "[GAME] CUE BALL IN" << std::endl;
             turn = (turn+1) % 2;
             replaceCueBall = true;
             playerShot = false;
-            std::cout << "TURN CHANGED TO P" << (turn+1) << std::endl;
+            std::cout << "[GAME] TURN CHANGED TO P" << (turn+1) << std::endl;
             break;
-        case SOLID:
-            std::cout << "SOLID BALL IN - " << score[0] << " - " 
-                << score[1] << std::endl; 
-            score[p1s] -= 1;
-            std::cout << "NEW GAME SCORE - " << score[0] << " - " 
-                << score[1] << std::endl; 
+        case SOLID: // POINTS BALL
+            pocketedBalls++;
+            if(p1s == -1) {
+                p1s = turn;
+                p2s = (turn+1) % 2;
+                players[p1s]->setBallType(SOLID);
+                players[p2s]->setBallType(STRIPED);
+                std::cout << "[GAME] SOLID BALLS -> P" << p1s+1 
+                << std::endl;
+                std::cout << "[GAME] STRIPED BALLS -> P" << p2s+1 
+                << std::endl;
+            }
+            std::cout << "[GAME] SOLID BALL IN - " << score[p1s] << " - " 
+                << score[p2s] << std::endl;
+
+            if(players[p1s]->getBallType() == SOLID) {
+                score[p1s] -= 1;
+                if(score[p1s] == 0) {
+                    players[p1s]->setBallType(EIGHT);
+                }
+            } else {
+                score[p2s] -= 1;
+                if(score[p2s] == 0) {
+                    players[p2s]->setBallType(EIGHT);
+                }
+            }
+
+            std::cout << "[GAME] NEW GAME SCORE - " << score[p1s] << " - " 
+                << score[p2s] << std::endl; 
             break;
-        case EIGHT:
-            std::cout << "EIGHT BALL IN - " << score[0] << " - " 
-                << score[1] << std::endl;
+        case EIGHT: // END GAME 
+            std::cout << "[GAME] EIGHT BALL IN - " << score[p1s] << " - " 
+                << score[p2s] << std::endl;
             if(score[turn] > 0) {
                 win = (turn+1) % 2;
-                std::cout << "GAME WINNER IS P" << (winner()+1) << std::endl;
+                std::cout << "[GAME] WINNER IS P" << (winner()+1) 
+                << std::endl;
                 playing = false;
             } else {
                 win = turn;
-                std::cout << "GAME WINNER IS P" << (winner()+1) << std::endl;
+                std::cout << "[GAME] WINNER IS P" << (winner()+1) 
+                << std::endl;
                 playing = false;
             }
             break;
-        case STRIPED:
-            std::cout << "STRIPED BALL IN - " << score[0] << " - " 
-                << score[1] << std::endl;  
-            score[p2s] -= 1;
-            std::cout << "NEW GAME SCORE - " << score[0] << " - " 
-                << score[1] << std::endl;
+        case STRIPED: // POINTS BALL
+            pocketedBalls++;
+            if(p1s == -1) {
+                p1s = turn;
+                p2s = (turn+1) % 2;
+                players[p1s]->setBallType(STRIPED);
+                players[p2s]->setBallType(SOLID);
+                std::cout << "SOLID BALLS -> P" << p2s+1 << std::endl;
+                std::cout << "STRIPED BALLS -> P" << p1s+1 << std::endl;
+            }
+            std::cout << "STRIPED BALL IN - " << score[p1s] << " - " 
+                << score[p2s] << std::endl;
+
+            if(players[p1s]->getBallType() == STRIPED) {
+                score[p1s] -= 1;
+                if(score[p1s] == 0) {
+                    players[p1s]->setBallType(EIGHT);
+                }
+            } else {
+                score[p2s] -= 1;
+                if(score[p2s] == 0) {
+                    players[p2s]->setBallType(EIGHT);
+                }
+            }  
+
+            std::cout << "NEW GAME SCORE - " << score[p1s] << " - " 
+                << score[p2s] << std::endl;
             break;
         default:
             break;
@@ -901,6 +1145,12 @@ void drawDirectionLine(Ball *b, float size) {
     glVertex2f(ballPos.getX(), ballPos.getY());
     glVertex2f(nBallPos.getX(), nBallPos.getY());
     glEnd();
+}
+
+float frand(float fMin, float fMax) {
+    srand(time(NULL));
+    float f = (float) rand() / RAND_MAX;
+    return fMin + f * (fMax - fMin);
 }
 
 //-----------------------------------------------

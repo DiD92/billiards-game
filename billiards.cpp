@@ -75,8 +75,11 @@ int main(int argc,char *argv[]) {
 
 void initContext() {
     //table = new BilliardsTable(worldx, worldy);
-    game = new Game(worldx, worldy, new HumanPlayer("P1", SOLID), 
-        new HumanPlayer("P2", STRIPED));
+    DirectShotAI *ai = new DirectShotAI();
+    /*game = new Game(worldx, worldy, new BotPlayer("P1", CUE, ai), 
+        new BotPlayer("P2", CUE, ai));*/
+    game = new Game(worldx, worldy, new HumanPlayer("P1", CUE), 
+        new BotPlayer("P2", CUE, ai));
     game->startGame(0);
 }
 

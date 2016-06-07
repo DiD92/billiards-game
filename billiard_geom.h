@@ -67,6 +67,8 @@ class Point3 {
         double getZ() const;
         void setZ(double z);
 
+        double distanceTo(const Point3 &p);
+
         bool equals(const Point3 &p);
 
         Point3 operator + (const Point3 &point);
@@ -248,7 +250,13 @@ class HoleGenerator : BallGenerator {
         Hole* generate(Point3 position);
 };
 
-class BilliardsTable {
+class IMappable {
+
+    virtual Ball* getMap() = 0;
+    virtual Hole* getTargets() = 0;
+};
+
+class BilliardsTable : public IMappable {
 
     public: 
         BilliardsTable(double w, double h, INotifiable *callback);
@@ -260,6 +268,9 @@ class BilliardsTable {
         void placeCueBall();
 
         bool shotReady();
+
+        Ball* getMap();
+        Hole* getTargets();
 
     private:
         void initTable();
@@ -278,6 +289,22 @@ class BilliardsTable {
 
 };
 
+class AI {
+
+    public:
+        static Vector3 randomPlanarVector();
+        static Vector3 randomPlanarVector(float maxMod);
+
+        virtual Vector3 computeShot(BilliardsTable *bt, BallType target);
+
+};
+
+class DirectShotAI : public AI {
+
+    public:
+        virtual Vector3 computeShot(BilliardsTable *bt, BallType target);
+};
+
 class Player {
 
     public:
@@ -286,6 +313,8 @@ class Player {
         void setName(std::string name);
         BallType getBallType();
         void setBallType(BallType t);
+        BilliardsTable* getTable();
+        void setTable(BilliardsTable *bt);
 
         virtual Point3* getShot() = 0;
         virtual void changeFromPrevious() = 0;
@@ -294,6 +323,7 @@ class Player {
     private:
         std::string name;
         BallType assigType;
+        BilliardsTable *bt;
 };
 
 void playerMouse(int button, int state, int x, int y);
@@ -309,6 +339,19 @@ class HumanPlayer : public Player {
     private:
         bool awaitingInput;
         bool inputRecv;
+        Point3 *shot;
+};
+
+class BotPlayer : public Player {
+
+    public:
+        BotPlayer(std::string name, BallType type, AI *botAI);
+        Point3* getShot();
+        void changeFromPrevious();
+        void receiveInput(Point3 *p);
+
+    private:
+        AI *botAI;
         Point3 *shot;
 };
 
