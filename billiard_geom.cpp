@@ -959,8 +959,8 @@ void Game::startGame(int startPlayer) {
     this->players[this->turn]->changeFromPrevious();
 
     this->win = 0;
-    this->score[0] = 1;
-    this->score[1] = 1;
+    this->score[0] = 7;
+    this->score[1] = 7;
     this->pocketedBalls = 0;
     this->playerShot = false;
     this->replaceCueBall = false;

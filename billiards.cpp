@@ -56,11 +56,34 @@ double mousepx, mousepy;
 long elapsedTime, deltaTime, lastElapsed;
 double deltaSeconds;
 
+int p1type, p2type;
+
 //-----------------------------------------------
 // -- MAIN PROCEDURE
 //-----------------------------------------------
 
 int main(int argc,char *argv[]) {
+
+    if(argc != 3) {
+        std::cout << "Usage: " << argv[0] << " <player 1> <player 2>" << std::endl;
+        std::cout << "Player types are: " << std::endl;
+        std::cout << "0 - Human player, 1 - Base AI, 2 - DirectShot AI" << std::endl;
+
+        return -1;
+    } else {
+        p1type = atoi(argv[1]);
+        p2type = atoi(argv[2]);
+
+        if(p1type < 0 || p1type > 2) {
+            std::cout << "Error, player 1 valid type range: 0 - 2" << std::endl;
+            return -1;
+        }
+
+        if(p2type < 0 || p2type > 2) {
+            std::cout << "Error, player 2 valid type range: 0 - 2" << std::endl;
+            return -1;
+        }
+    }
 
     initContext();
 
@@ -74,12 +97,35 @@ int main(int argc,char *argv[]) {
 //-----------------------------------------------
 
 void initContext() {
-    //table = new BilliardsTable(worldx, worldy);
-    DirectShotAI *ai = new DirectShotAI();
-    /*game = new Game(worldx, worldy, new BotPlayer("P1", CUE, ai), 
-        new BotPlayer("P2", CUE, ai));*/
-    game = new Game(worldx, worldy, new HumanPlayer("P1", CUE), 
-        new BotPlayer("P2", CUE, ai));
+
+    Player *p1 = NULL, *p2 = NULL;
+
+    switch(p1type) {
+        case 0:
+            p1 = new HumanPlayer("P1", CUE);
+            break;
+        case 1:
+            p1 = new BotPlayer("P1", CUE, new AI());
+            break;
+        default:
+            p1 = new BotPlayer("P1", CUE, new DirectShotAI());
+            break;
+    }
+
+    switch(p2type) {
+        case 0:
+            p2 = new HumanPlayer("P2", CUE);
+            break;
+        case 1:
+            p2 = new BotPlayer("P2", CUE, new AI());
+            break;
+        default:
+            p2 = new BotPlayer("P2", CUE, new DirectShotAI());
+            break;
+    }
+
+    AI *ai = new DirectShotAI();
+    game = new Game(worldx, worldy, p1, p2);
     game->startGame(0);
 }
 
